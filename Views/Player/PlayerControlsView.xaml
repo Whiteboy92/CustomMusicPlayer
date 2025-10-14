@@ -1,0 +1,186 @@
+<UserControl x:Class="MusicPlayer.Views.Player.PlayerControlsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d" 
+             d:DesignHeight="200" d:DesignWidth="800">
+    
+    <UserControl.Resources>
+        <!-- Volume Icon Style -->
+        <Style x:Key="VolumeIconStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="24"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <ScaleTransform ScaleX="1" ScaleY="1"/>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="RenderTransform">
+                        <Setter.Value>
+                            <ScaleTransform ScaleX="1.15" ScaleY="1.15"/>
+                        </Setter.Value>
+                    </Setter>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+    
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Progress Bar and Time -->
+        <Border Grid.Row="0" Margin="0,0,0,10" BorderBrush="#333333" BorderThickness="1" CornerRadius="5" Background="#2d2d2d">
+            <Grid Margin="15,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Name="TxtCurrentTime" Text="00:00" 
+                           Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                
+                <Slider Grid.Column="1" Name="ProgressSlider" 
+                        Minimum="0" Maximum="100" Value="0"
+                        VerticalAlignment="Center"
+                        Style="{StaticResource ModernSliderStyle}"
+                        Thumb.DragStarted="ProgressSlider_DragStarted"
+                        Thumb.DragCompleted="ProgressSlider_DragCompleted"/>
+                
+                <TextBlock Grid.Column="2" Name="TxtTotalTime" Text="00:00" 
+                           Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+            </Grid>
+        </Border>
+
+        <!-- Control Panel -->
+        <Border Grid.Row="1" BorderBrush="#333333" BorderThickness="1" CornerRadius="5" Background="#2d2d2d">
+            <Grid Margin="15">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Volume Control with Speaker Icon and Buttons -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                    <!-- Volume Down Button -->
+                    <Button Name="BtnVolumeDown" 
+                            Style="{StaticResource RoundedButtonStyle}"
+                            Width="44" Height="44"
+                            Click="BtnVolumeDown_Click"
+                            Margin="0,0,5,0">
+                        <Canvas Width="16" Height="16">
+                            <!-- Minus Sign (Horizontal Rectangle) -->
+                            <Rectangle Width="16" Height="2.5" 
+                                       Canvas.Left="0" Canvas.Top="6.75"
+                                       Fill="{StaticResource TextBrush}"/>
+                        </Canvas>
+                    </Button>
+                    
+                    <!-- Speaker Icon with Popup -->
+                    <Grid Name="VolumeControl" 
+                          MouseEnter="VolumeControl_MouseEnter"
+                          MouseLeave="VolumeControl_MouseLeave">
+                        <TextBlock Name="SpeakerIcon" 
+                                   Text="🔊" 
+                                   Style="{StaticResource VolumeIconStyle}"
+                                   VerticalAlignment="Center"/>
+                        
+                        <!-- Volume Popup -->
+                        <Popup Name="VolumePopup" 
+                               PlacementTarget="{Binding ElementName=SpeakerIcon}"
+                               Placement="Top"
+                               StaysOpen="False"
+                               AllowsTransparency="True"
+                               VerticalOffset="10">
+                            <Border Background="#2d2d2d" 
+                                    BorderBrush="#4a4a4a" 
+                                    BorderThickness="1"
+                                    CornerRadius="5"
+                                    Padding="10,15"
+                                    MouseEnter="VolumePopup_MouseEnter"
+                                    MouseLeave="VolumePopup_MouseLeave">
+                                <StackPanel>
+                                    <!-- Volume Percentage Display -->
+                                    <TextBlock Name="TxtVolume" 
+                                               Text="3%" 
+                                               Foreground="{StaticResource TextBrush}" 
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,0,0,10"/>
+                                    
+                                    <!-- Vertical Volume Slider -->
+                                    <Slider Name="VolumeSlider" 
+                                            Orientation="Vertical"
+                                            Height="120"
+                                            Width="40"
+                                            Minimum="0" 
+                                            Maximum="100" 
+                                            Value="3"
+                                            TickFrequency="10"
+                                            IsSnapToTickEnabled="False"
+                                            ValueChanged="VolumeSlider_ValueChanged"
+                                            HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    
+                    <!-- Volume Up Button -->
+                    <Button Name="BtnVolumeUp" 
+                            Style="{StaticResource RoundedButtonStyle}"
+                            Width="44" Height="44"
+                            Click="BtnVolumeUp_Click"
+                            Margin="5,0,0,0">
+                        <Canvas Width="16" Height="16">
+                            <!-- Plus Sign (Two Rectangles) -->
+                            <Rectangle Width="16" Height="2.5" 
+                                       Canvas.Left="0" Canvas.Top="6.75"
+                                       Fill="{StaticResource TextBrush}"/>
+                            <!-- Vertical bar -->
+                            <Rectangle Width="2.5" Height="16" 
+                                       Canvas.Left="6.75" Canvas.Top="0"
+                                       Fill="{StaticResource TextBrush}"/>
+                        </Canvas>
+                    </Button>
+                </StackPanel>
+
+                <!-- Playback Controls -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Button Name="BtnPrevious" Content="⏮ Previous" 
+                            Padding="20,12" Margin="5"
+                            Style="{StaticResource RoundedButtonStyle}"
+                            FontSize="14"
+                            Click="BtnPrevious_Click"/>
+                    
+                    <Button Name="BtnPlayPause" Content="▶ Play" 
+                            Padding="20,12" Margin="5"
+                            FontSize="14"
+                            Style="{StaticResource PlayButtonStyle}"
+                            Click="BtnPlayPause_Click" FontWeight="Bold"/>
+                    
+                    <Button Name="BtnShuffle" Content="🔀 Shuffle" 
+                            Padding="20,12" Margin="5"
+                            FontSize="14"
+                            Style="{StaticResource RoundedButtonStyle}"
+                            Click="BtnShuffle_Click"/>
+                    
+                    <Button Name="BtnNext" Content="Next ⏭" 
+                            Padding="20,12" Margin="5"
+                            FontSize="14"
+                            Style="{StaticResource RoundedButtonStyle}"
+                            Click="BtnNext_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

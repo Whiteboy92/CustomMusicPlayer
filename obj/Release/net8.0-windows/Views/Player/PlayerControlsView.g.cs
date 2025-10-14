@@ -1,0 +1,327 @@
+#pragma checksum "..\..\..\..\..\Views\Player\PlayerControlsView.xaml" "{ff1816ec-aa5e-4d10-87f7-6f4963833460}" "DE35AB1A9BEBAA470587F3CEAAC1B04F99C63533"
+
+using MusicPlayer.Views.Player;
+using System;
+using System.Diagnostics;
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Controls.Ribbon;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Ink;
+using System.Windows.Input;
+using System.Windows.Markup;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
+using System.Windows.Media.Media3D;
+using System.Windows.Media.TextFormatting;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+using System.Windows.Shell;
+
+
+namespace MusicPlayer.Views.Player {
+    
+    
+    /// <summary>
+    /// PlayerControlsView
+    /// </summary>
+    public partial class PlayerControlsView : System.Windows.Controls.UserControl, System.Windows.Markup.IComponentConnector {
+        
+        
+        #line 49 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        internal System.Windows.Controls.TextBlock TxtCurrentTime;
+        
+        #line default
+        #line hidden
+        
+        
+        #line 52 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        internal System.Windows.Controls.Slider ProgressSlider;
+        
+        #line default
+        #line hidden
+        
+        
+        #line 59 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        internal System.Windows.Controls.TextBlock TxtTotalTime;
+        
+        #line default
+        #line hidden
+        
+        
+        #line 76 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        internal System.Windows.Controls.Button BtnVolumeDown;
+        
+        #line default
+        #line hidden
+        
+        
+        #line 89 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        internal System.Windows.Controls.Grid VolumeControl;
+        
+        #line default
+        #line hidden
+        
+        
+        #line 92 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        internal System.Windows.Controls.TextBlock SpeakerIcon;
+        
+        #line default
+        #line hidden
+        
+        
+        #line 98 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        internal System.Windows.Controls.Primitives.Popup VolumePopup;
+        
+        #line default
+        #line hidden
+        
+        
+        #line 113 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        internal System.Windows.Controls.TextBlock TxtVolume;
+        
+        #line default
+        #line hidden
+        
+        
+        #line 122 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        internal System.Windows.Controls.Slider VolumeSlider;
+        
+        #line default
+        #line hidden
+        
+        
+        #line 139 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        internal System.Windows.Controls.Button BtnVolumeUp;
+        
+        #line default
+        #line hidden
+        
+        
+        #line 159 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        internal System.Windows.Controls.Button BtnPrevious;
+        
+        #line default
+        #line hidden
+        
+        
+        #line 164 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        internal System.Windows.Controls.Button BtnPlayPause;
+        
+        #line default
+        #line hidden
+        
+        
+        #line 169 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        internal System.Windows.Controls.Button BtnShuffle;
+        
+        #line default
+        #line hidden
+        
+        
+        #line 174 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        internal System.Windows.Controls.Button BtnNext;
+        
+        #line default
+        #line hidden
+        
+        
+        #line 183 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1823:AvoidUnusedPrivateFields")]
+        internal System.Windows.Controls.MediaElement MediaPlayer;
+        
+        #line default
+        #line hidden
+        
+        private bool _contentLoaded;
+        
+        /// <summary>
+        /// InitializeComponent
+        /// </summary>
+        [System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [System.CodeDom.Compiler.GeneratedCodeAttribute("PresentationBuildTasks", "8.0.16.0")]
+        public void InitializeComponent() {
+            if (_contentLoaded) {
+                return;
+            }
+            _contentLoaded = true;
+            System.Uri resourceLocater = new System.Uri("/MusicPlayer;component/views/player/playercontrolsview.xaml", System.UriKind.Relative);
+            
+            #line 1 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+            System.Windows.Application.LoadComponent(this, resourceLocater);
+            
+            #line default
+            #line hidden
+        }
+        
+        [System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [System.CodeDom.Compiler.GeneratedCodeAttribute("PresentationBuildTasks", "8.0.16.0")]
+        [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Never)]
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Design", "CA1033:InterfaceMethodsShouldBeCallableByChildTypes")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Maintainability", "CA1502:AvoidExcessiveComplexity")]
+        [System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1800:DoNotCastUnnecessarily")]
+        void System.Windows.Markup.IComponentConnector.Connect(int connectionId, object target) {
+            switch (connectionId)
+            {
+            case 1:
+            this.TxtCurrentTime = ((System.Windows.Controls.TextBlock)(target));
+            return;
+            case 2:
+            this.ProgressSlider = ((System.Windows.Controls.Slider)(target));
+            
+            #line 56 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+            this.ProgressSlider.AddHandler(System.Windows.Controls.Primitives.Thumb.DragStartedEvent, new System.Windows.Controls.Primitives.DragStartedEventHandler(this.ProgressSlider_DragStarted));
+            
+            #line default
+            #line hidden
+            
+            #line 57 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+            this.ProgressSlider.AddHandler(System.Windows.Controls.Primitives.Thumb.DragCompletedEvent, new System.Windows.Controls.Primitives.DragCompletedEventHandler(this.ProgressSlider_DragCompleted));
+            
+            #line default
+            #line hidden
+            return;
+            case 3:
+            this.TxtTotalTime = ((System.Windows.Controls.TextBlock)(target));
+            return;
+            case 4:
+            this.BtnVolumeDown = ((System.Windows.Controls.Button)(target));
+            
+            #line 78 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+            this.BtnVolumeDown.Click += new System.Windows.RoutedEventHandler(this.BtnVolumeDown_Click);
+            
+            #line default
+            #line hidden
+            return;
+            case 5:
+            this.VolumeControl = ((System.Windows.Controls.Grid)(target));
+            
+            #line 90 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+            this.VolumeControl.MouseEnter += new System.Windows.Input.MouseEventHandler(this.VolumeControl_MouseEnter);
+            
+            #line default
+            #line hidden
+            
+            #line 91 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+            this.VolumeControl.MouseLeave += new System.Windows.Input.MouseEventHandler(this.VolumeControl_MouseLeave);
+            
+            #line default
+            #line hidden
+            return;
+            case 6:
+            this.SpeakerIcon = ((System.Windows.Controls.TextBlock)(target));
+            return;
+            case 7:
+            this.VolumePopup = ((System.Windows.Controls.Primitives.Popup)(target));
+            return;
+            case 8:
+            
+            #line 109 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+            ((System.Windows.Controls.Border)(target)).MouseEnter += new System.Windows.Input.MouseEventHandler(this.VolumePopup_MouseEnter);
+            
+            #line default
+            #line hidden
+            
+            #line 110 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+            ((System.Windows.Controls.Border)(target)).MouseLeave += new System.Windows.Input.MouseEventHandler(this.VolumePopup_MouseLeave);
+            
+            #line default
+            #line hidden
+            return;
+            case 9:
+            this.TxtVolume = ((System.Windows.Controls.TextBlock)(target));
+            return;
+            case 10:
+            this.VolumeSlider = ((System.Windows.Controls.Slider)(target));
+            
+            #line 131 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+            this.VolumeSlider.ValueChanged += new System.Windows.RoutedPropertyChangedEventHandler<double>(this.VolumeSlider_ValueChanged);
+            
+            #line default
+            #line hidden
+            return;
+            case 11:
+            this.BtnVolumeUp = ((System.Windows.Controls.Button)(target));
+            
+            #line 141 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+            this.BtnVolumeUp.Click += new System.Windows.RoutedEventHandler(this.BtnVolumeUp_Click);
+            
+            #line default
+            #line hidden
+            return;
+            case 12:
+            this.BtnPrevious = ((System.Windows.Controls.Button)(target));
+            
+            #line 162 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+            this.BtnPrevious.Click += new System.Windows.RoutedEventHandler(this.BtnPrevious_Click);
+            
+            #line default
+            #line hidden
+            return;
+            case 13:
+            this.BtnPlayPause = ((System.Windows.Controls.Button)(target));
+            
+            #line 167 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+            this.BtnPlayPause.Click += new System.Windows.RoutedEventHandler(this.BtnPlayPause_Click);
+            
+            #line default
+            #line hidden
+            return;
+            case 14:
+            this.BtnShuffle = ((System.Windows.Controls.Button)(target));
+            
+            #line 172 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+            this.BtnShuffle.Click += new System.Windows.RoutedEventHandler(this.BtnShuffle_Click);
+            
+            #line default
+            #line hidden
+            return;
+            case 15:
+            this.BtnNext = ((System.Windows.Controls.Button)(target));
+            
+            #line 177 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+            this.BtnNext.Click += new System.Windows.RoutedEventHandler(this.BtnNext_Click);
+            
+            #line default
+            #line hidden
+            return;
+            case 16:
+            this.MediaPlayer = ((System.Windows.Controls.MediaElement)(target));
+            
+            #line 185 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+            this.MediaPlayer.MediaOpened += new System.Windows.RoutedEventHandler(this.MediaPlayer_MediaOpened);
+            
+            #line default
+            #line hidden
+            
+            #line 186 "..\..\..\..\..\Views\Player\PlayerControlsView.xaml"
+            this.MediaPlayer.MediaEnded += new System.Windows.RoutedEventHandler(this.MediaPlayer_MediaEnded);
+            
+            #line default
+            #line hidden
+            return;
+            }
+            this._contentLoaded = true;
+        }
+    }
+}
+

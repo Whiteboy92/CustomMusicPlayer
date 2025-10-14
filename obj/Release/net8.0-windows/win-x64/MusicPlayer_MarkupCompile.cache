@@ -1,0 +1,20 @@
+﻿MusicPlayer
+
+
+winexe
+C#
+.cs
+C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Release\net8.0-windows\win-x64\
+MusicPlayer
+none
+false
+TRACE;RELEASE;NET;NET8_0;NETCOREAPP
+C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\App.xaml
+6864654119
+
+151709784202
+217602692533
+MainWindow.xaml;Views\CustomTitleBar\CustomTitleBar.xaml;Views\Equalizer\EqualizerView.xaml;Views\Player\PlayerControlsView.xaml;Views\Playlist\PlaylistView.xaml;Views\Statistics\StatisticsView.xaml;
+
+False
+

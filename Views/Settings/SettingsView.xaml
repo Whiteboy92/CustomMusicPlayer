@@ -1,0 +1,250 @@
+<UserControl x:Class="MusicPlayer.Views.Settings.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="800">
+    
+    <UserControl.Resources>
+        <!-- Section Style -->
+        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,15"/>
+        </Style>
+        
+        <!-- Label Style -->
+        <Style x:Key="LabelStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+        
+        <!-- Info Text Style -->
+        <Style x:Key="InfoTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="Margin" Value="0,5,0,0"/>
+        </Style>
+
+        <!-- Button Base Style -->
+        <Style x:Key="SettingsButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#2d2d2d"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#444444"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#3d3d3d"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#1d1d1d"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Danger Button Style (Red) -->
+        <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource SettingsButtonStyle}">
+            <Setter Property="Background" Value="#5a1a1a"/>
+            <Setter Property="BorderBrush" Value="#8b2020"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#7a2020"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#4a1010"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+    
+    <Border BorderBrush="#333333" BorderThickness="1" CornerRadius="5" Background="#1a1a1a">
+        <ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="40,30">
+                
+                <!-- Header -->
+                <TextBlock Text="⚙️ Settings" 
+                           FontSize="28" 
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextBrush}"
+                           Margin="0,0,0,30"/>
+
+                <!-- Music Folder Section -->
+                <Border Background="#222222" BorderBrush="#333333" BorderThickness="1" 
+                        CornerRadius="5" Padding="25" Margin="0,0,0,20">
+                    <StackPanel>
+                        <TextBlock Text="📁 Music Folder" Style="{StaticResource SectionHeaderStyle}"/>
+                        
+                        <TextBlock Text="Current folder:" Style="{StaticResource LabelStyle}"/>
+                        <Border Background="#1a1a1a" BorderBrush="#333333" BorderThickness="1" 
+                                CornerRadius="3" Padding="12,10" Margin="0,0,0,15">
+                            <TextBlock Name="TxtMusicFolder" 
+                                       Text="C:\Music" 
+                                       Foreground="{StaticResource TextBrush}"
+                                       FontSize="13"
+                                       TextWrapping="Wrap"/>
+                        </Border>
+                        
+                        <Button Name="BtnChangeMusicFolder" 
+                                Content="📂 Change Music Folder" 
+                                Style="{StaticResource SettingsButtonStyle}"
+                                HorizontalAlignment="Left"
+                                Click="BtnChangeMusicFolder_Click"/>
+                        
+                        <TextBlock Text="Note: Changing the folder will reload your library" 
+                                   Style="{StaticResource InfoTextStyle}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Playback Settings Section -->
+                <Border Background="#222222" BorderBrush="#333333" BorderThickness="1" 
+                        CornerRadius="5" Padding="25" Margin="0,0,0,20">
+                    <StackPanel>
+                        <TextBlock Text="🎵 Playback Settings" Style="{StaticResource SectionHeaderStyle}"/>
+                        
+                        <CheckBox Name="ChkAutoPlayOnStartup" 
+                                  Content="Auto-play last song on startup"
+                                  Foreground="{StaticResource TextBrush}"
+                                  Margin="0,0,0,15"
+                                  Checked="ChkAutoPlayOnStartup_Changed"
+                                  Unchecked="ChkAutoPlayOnStartup_Changed"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Database Section -->
+                <Border Background="#222222" BorderBrush="#333333" BorderThickness="1" 
+                        CornerRadius="5" Padding="25" Margin="0,0,0,20">
+                    <StackPanel>
+                        <TextBlock Text="💾 Database" Style="{StaticResource SectionHeaderStyle}"/>
+                        
+                        <Grid Margin="0,0,0,15">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <TextBlock Grid.Row="0" Grid.Column="0" 
+                                       Text="Songs in database:" 
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       FontSize="13"
+                                       Margin="0,0,15,8"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" 
+                                       Name="TxtSongCount"
+                                       Text="0" 
+                                       Foreground="{StaticResource TextBrush}"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,8"/>
+                            
+                            <TextBlock Grid.Row="1" Grid.Column="0" 
+                                       Text="Total plays:" 
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       FontSize="13"
+                                       Margin="0,0,15,8"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" 
+                                       Name="TxtTotalPlays"
+                                       Text="0" 
+                                       Foreground="{StaticResource TextBrush}"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,8"/>
+                            
+                            <TextBlock Grid.Row="2" Grid.Column="0" 
+                                       Text="Database location:" 
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       FontSize="13"
+                                       Margin="0,0,15,0"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" 
+                                       Name="TxtDatabaseLocation"
+                                       Text="C:\..." 
+                                       Foreground="#888888"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"/>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <Button Name="BtnClearHistory" 
+                                    Content="🗑️ Clear Play History" 
+                                    Style="{StaticResource SettingsButtonStyle}"
+                                    Margin="0,0,10,0"
+                                    Click="BtnClearHistory_Click"/>
+                            
+                            <Button Name="BtnResetDatabase" 
+                                    Content="⚠️ Reset Database" 
+                                    Style="{StaticResource DangerButtonStyle}"
+                                    Click="BtnResetDatabase_Click"/>
+                        </StackPanel>
+                        
+                        <TextBlock Text="⚠️ Reset Database will delete ALL settings, play counts, and cached durations" 
+                                   Foreground="#ff6b6b"
+                                   FontSize="12"
+                                   Margin="0,10,0,0"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- About Section -->
+                <Border Background="#222222" BorderBrush="#333333" BorderThickness="1" 
+                        CornerRadius="5" Padding="25">
+                    <StackPanel>
+                        <TextBlock Text="ℹ️ About" Style="{StaticResource SectionHeaderStyle}"/>
+                        
+                        <TextBlock Text="Music Player v1.0" 
+                                   Foreground="{StaticResource TextBrush}"
+                                   FontSize="13"
+                                   Margin="0,0,0,5"/>
+                        <TextBlock Text="A modern music player built with WPF" 
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="12"
+                                   Margin="0,0,0,15"/>
+                        
+                        <TextBlock Text="Features:" 
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="12"
+                                   Margin="0,0,0,5"/>
+                        <TextBlock Text="• Smart shuffle based on play count" 
+                                   Foreground="#888888"
+                                   FontSize="11"
+                                   Margin="5,0,0,3"/>
+                        <TextBlock Text="• 5-band equalizer" 
+                                   Foreground="#888888"
+                                   FontSize="11"
+                                   Margin="5,0,0,3"/>
+                        <TextBlock Text="• Playback statistics" 
+                                   Foreground="#888888"
+                                   FontSize="11"
+                                   Margin="5,0,0,3"/>
+                        <TextBlock Text="• Queue persistence" 
+                                   Foreground="#888888"
+                                   FontSize="11"
+                                   Margin="5,0,0,3"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Border>
+</UserControl>
+
