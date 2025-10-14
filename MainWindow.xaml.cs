@@ -18,6 +18,7 @@ public partial class MainWindow
     private bool isShuffled;
     private string? currentSongPath;
     private double currentSongPosition;
+    private bool songJustFinished;
 
     public MainWindow(
         IMusicLoaderService musicLoaderService, 
@@ -271,6 +272,13 @@ public partial class MainWindow
             song.PlayCount++;
             settings.IncrementPlayCount(song.FilePath);
             LoadStatistics();
+            
+            if (PlaybackStateValidator.HasPlaylistItems(PlaylistView.GetPlaylistCount()))
+            {
+                PlaylistView.MarkCurrentSongAsCompleted();
+                SaveCurrentQueue();
+                songJustFinished = true;
+            }
         }
     }
 
@@ -431,13 +439,20 @@ public partial class MainWindow
     
     private void PlayerControlsView_NextRequested(object? sender, EventArgs e)
     {
-        SaveCurrentSongPlayCountIfNeeded();
-        
-        if (PlaybackStateValidator.HasPlaylistItems(PlaylistView.GetPlaylistCount()))
+        // Only mark as completed if song didn't just finish naturally
+        if (!songJustFinished)
         {
-            PlaylistView.MarkCurrentSongAsCompleted();
-            SaveCurrentQueue();
+            SaveCurrentSongPlayCountIfNeeded();
+            
+            if (PlaybackStateValidator.HasPlaylistItems(PlaylistView.GetPlaylistCount()))
+            {
+                PlaylistView.MarkCurrentSongAsCompleted();
+                SaveCurrentQueue();
+            }
         }
+        
+        // Reset the flag for next time
+        songJustFinished = false;
         
         if (PlaybackStateValidator.HasPlaylistItems(PlaylistView.GetPlaylistCount()))
         {
