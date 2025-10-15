@@ -12,6 +12,7 @@ public class DiscordRpcService : IDiscordRpcService
     private DiscordRpcClient? client;
     private bool isInitialized;
     private readonly object lockObject = new();
+    private DateTime? activityStartTime;
     
     private string? lastSongName;
     private string? lastArtist;
@@ -51,6 +52,7 @@ public class DiscordRpcService : IDiscordRpcService
 
                 client.Initialize();
                 isInitialized = true;
+                activityStartTime = DateTime.UtcNow;
             }
             catch (Exception ex)
             {
@@ -97,6 +99,9 @@ public class DiscordRpcService : IDiscordRpcService
                     SmallImageKey = isPlaying ? "play" : "pause",
                     SmallImageText = isPlaying ? "Playing" : "Paused",
                 },
+                Timestamps = activityStartTime.HasValue 
+                    ? new Timestamps { Start = activityStartTime.Value }
+                    : null
             };
 
             client.SetPresence(presence);
@@ -121,6 +126,7 @@ public class DiscordRpcService : IDiscordRpcService
         {
             client.ClearPresence();
             
+            activityStartTime = null;
             lastSongName = null;
             lastArtist = null;
             lastIsPlaying = false;
@@ -153,6 +159,7 @@ public class DiscordRpcService : IDiscordRpcService
                 {
                     client = null;
                     isInitialized = false;
+                    activityStartTime = null;
                 }
             }
         }

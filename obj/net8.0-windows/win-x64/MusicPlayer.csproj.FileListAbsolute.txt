@@ -49,3 +49,5 @@ C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\net8.0-windows\win-x64
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\net8.0-windows\win-x64\MusicPlayer.pdb
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\net8.0-windows\win-x64\MusicPlayer.genruntimeconfig.cache
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\net8.0-windows\win-x64\ref\MusicPlayer.dll
+C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\bin\net8.0-windows\win-x64\DiscordRPC.dll
+C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\bin\net8.0-windows\win-x64\Newtonsoft.Json.dll
