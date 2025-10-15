@@ -3,6 +3,7 @@ using System.Windows.Threading;
 using MusicPlayer.Helpers;
 using MusicPlayer.Interfaces;
 using MusicPlayer.Models;
+using MusicPlayer.Services.DiscordRpc;
 using MusicPlayer.Validation;
 
 namespace MusicPlayer;
@@ -13,8 +14,11 @@ public partial class MainWindow
     private readonly ISettingsService settings;
     private readonly IDurationExtractorService durationExtractor;
     private readonly IShuffleService shuffleService;
+    private readonly IDiscordRpcService discordRpc;
+    private readonly DiscordPresenceUpdater discordPresenceUpdater;
     private readonly DispatcherTimer? savePositionTimer;
     private readonly DispatcherTimer? memoryPositionTimer;
+    private readonly DispatcherTimer? discordUpdateTimer;
     private bool isShuffled;
     private string? currentSongPath;
     private double currentSongPosition;
@@ -24,7 +28,9 @@ public partial class MainWindow
         IMusicLoaderService musicLoaderService, 
         ISettingsService settingsService, 
         IDurationExtractorService durationExtractorService,
-        IShuffleService shuffleService)
+        IShuffleService shuffleService,
+        IDiscordRpcService discordRpcService,
+        DiscordPresenceUpdater discordPresenceUpdater)
     {
         InitializeComponent();
 
@@ -32,6 +38,8 @@ public partial class MainWindow
         settings = settingsService;
         durationExtractor = durationExtractorService;
         this.shuffleService = shuffleService;
+        discordRpc = discordRpcService;
+        this.discordPresenceUpdater = discordPresenceUpdater;
         SubscribeToEvents();
         
         memoryPositionTimer = new DispatcherTimer
@@ -49,6 +57,13 @@ public partial class MainWindow
         savePositionTimer.Tick += SavePositionTimer_Tick;
         savePositionTimer.Start();
         
+        discordUpdateTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(5),
+        };
+        discordUpdateTimer.Tick += DiscordUpdateTimer_Tick;
+        discordUpdateTimer.Start();
+        
         Loaded += MainWindow_Loaded;
         Closing += MainWindow_Closing;
     }
@@ -61,12 +76,14 @@ public partial class MainWindow
         PlayerControlsView.NextRequested += PlayerControlsView_NextRequested;
         PlayerControlsView.ShuffleRequested += PlayerControlsView_ShuffleRequested;
         PlayerControlsView.SongFinished += PlayerControlsView_SongFinished;
+        PlayerControlsView.MediaOpenedEvent += PlayerControlsView_MediaOpenedEvent;
         EqualizerView.EqualizerChanged += EqualizerView_EqualizerChanged;
         PlayerControlsView.VolumeChanged += PlayerControlsView_VolumeChanged;
         SettingsView.MusicFolderChangeRequested += SettingsView_MusicFolderChangeRequested;
         SettingsView.DatabaseResetRequested += SettingsView_DatabaseResetRequested;
         SettingsView.PlayHistoryClearRequested += SettingsView_PlayHistoryClearRequested;
         SettingsView.AutoPlayOnStartupChanged += SettingsView_AutoPlayOnStartupChanged;
+        SettingsView.DiscordClientIdChanged += SettingsView_DiscordClientIdChanged;
     }
 
     private void PlayerControlsView_VolumeChanged(object? sender, double e)
@@ -114,6 +131,7 @@ public partial class MainWindow
         SaveCurrentSongPlayCountIfNeeded();
         SaveFinalPlaybackState();
         SaveCurrentQueue();
+        discordPresenceUpdater.ClearPresence();
         DisposeResources();
     }
 
@@ -133,6 +151,7 @@ public partial class MainWindow
     {
         settings.Dispose();
         PlayerControlsView.Dispose();
+        discordRpc.Dispose();
     }
 
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -144,6 +163,8 @@ public partial class MainWindow
 
         var savedVolume = settings.GetVolumePercent();
         PlayerControlsView.SetVolumePercent(savedVolume);
+        
+        InitializeDiscordRpc();
     }
 
     private void LoadSettingsIntoMusicLoader()
@@ -163,6 +184,7 @@ public partial class MainWindow
     {
         SettingsView.SetMusicFolderPath(musicLoader.GetFolderPath());
         SettingsView.SetAutoPlayOnStartup(settings.GetAutoPlayOnStartup());
+        SettingsView.SetDiscordClientId(settings.GetDiscordClientId());
         UpdateSettingsStats();
     }
 
@@ -203,7 +225,10 @@ public partial class MainWindow
 
     private void RestorePlaybackState()
     {
-        PlaybackHelper.RestorePlaybackState(settings, PlaylistView, PlayerControlsView, this.Dispatcher);
+        PlaybackHelper.RestorePlaybackState(settings, PlaylistView, PlayerControlsView, this.Dispatcher, song =>
+        {
+            discordPresenceUpdater.SetCurrentSong(song);
+        });
     }
 
     private async void LoadMusicFromFolder()
@@ -258,6 +283,7 @@ public partial class MainWindow
 
     private void PlaylistView_SongSelected(object? sender, MusicFile musicFile)
     {
+        discordPresenceUpdater.SetCurrentSong(musicFile);
         PlayerControlsView.PlaySong(musicFile);
         settings.UpdateLastPlayedIndex(PlaylistView.SelectedIndex);
     }
@@ -312,6 +338,7 @@ public partial class MainWindow
         var song = PlaylistView.GetSongAtIndex(startIndex);
         if (song == null) return;
 
+        discordPresenceUpdater.SetCurrentSong(song);
         PlayerControlsView.PlaySong(song);
         settings.UpdateLastPlayedIndex(startIndex);
     }
@@ -344,6 +371,7 @@ public partial class MainWindow
         var song = PlaylistView.GetSongAtIndex(PlaylistView.SelectedIndex);
         if (song == null) return;
 
+        discordPresenceUpdater.SetCurrentSong(song);
         PlayerControlsView.PlaySong(song);
         settings.UpdateLastPlayedIndex(PlaylistView.SelectedIndex);
     }
@@ -470,6 +498,7 @@ public partial class MainWindow
         var song = PlaylistView.GetSongAtIndex(PlaylistView.SelectedIndex);
         if (song == null) return;
         
+        discordPresenceUpdater.SetCurrentSong(song);
         PlayerControlsView.PlaySong(song);
         settings.UpdateLastPlayedIndex(PlaylistView.SelectedIndex);
     }
@@ -481,7 +510,7 @@ public partial class MainWindow
             var dialog = new Microsoft.Win32.OpenFolderDialog
             {
                 Title = "Select Music Folder",
-                InitialDirectory = musicLoader.GetFolderPath()
+                InitialDirectory = musicLoader.GetFolderPath(),
             };
 
             if (dialog.ShowDialog() == true)
@@ -576,5 +605,35 @@ public partial class MainWindow
     {
         settings.SaveAutoPlayOnStartup(e);
         settings.FlushToDisk();
+    }
+
+    private void SettingsView_DiscordClientIdChanged(object? sender, string? e)
+    {
+        settings.SaveDiscordClientId(e);
+        settings.FlushToDisk();
+    }
+
+    private void InitializeDiscordRpc()
+    {
+        var clientId = settings.GetDiscordClientId();
+        if (!string.IsNullOrWhiteSpace(clientId))
+        {
+            discordRpc.Initialize(clientId);
+        }
+    }
+
+    private void PlayerControlsView_MediaOpenedEvent(object? sender, EventArgs e)
+    {
+        UpdateDiscordPresence();
+    }
+
+    private void DiscordUpdateTimer_Tick(object? sender, EventArgs e)
+    {
+        UpdateDiscordPresence();
+    }
+
+    private void UpdateDiscordPresence()
+    {
+        discordPresenceUpdater.UpdatePresence(PlayerControlsView);
     }
 }

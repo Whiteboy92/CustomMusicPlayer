@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Windows;
+using System.Windows.Navigation;
 
 namespace MusicPlayer.Views.Settings
 {
@@ -8,6 +10,7 @@ namespace MusicPlayer.Views.Settings
         public event EventHandler? DatabaseResetRequested;
         public event EventHandler? PlayHistoryClearRequested;
         public event EventHandler<bool>? AutoPlayOnStartupChanged;
+        public event EventHandler<string?>? DiscordClientIdChanged;
 
         public SettingsView()
         {
@@ -29,6 +32,11 @@ namespace MusicPlayer.Views.Settings
         public void SetAutoPlayOnStartup(bool enabled)
         {
             ChkAutoPlayOnStartup.IsChecked = enabled;
+        }
+
+        public void SetDiscordClientId(string? clientId)
+        {
+            TxtDiscordClientId.Text = clientId ?? string.Empty;
         }
 
         private void BtnChangeMusicFolder_Click(object sender, RoutedEventArgs e)
@@ -91,6 +99,31 @@ namespace MusicPlayer.Views.Settings
         private void ChkAutoPlayOnStartup_Changed(object sender, RoutedEventArgs e)
         {
             AutoPlayOnStartupChanged?.Invoke(this, ChkAutoPlayOnStartup.IsChecked ?? false);
+        }
+
+        private void TxtDiscordClientId_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        {
+            var clientId = string.IsNullOrWhiteSpace(TxtDiscordClientId.Text) 
+                ? null 
+                : TxtDiscordClientId.Text.Trim();
+            DiscordClientIdChanged?.Invoke(this, clientId);
+        }
+
+        private void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = e.Uri.AbsoluteUri,
+                    UseShellExecute = true,
+                });
+                e.Handled = true;
+            }
+            catch
+            {
+                // ignored
+            }
         }
     }
 }

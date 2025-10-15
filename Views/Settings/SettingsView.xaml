@@ -129,6 +129,49 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Discord Rich Presence Section -->
+                <Border Background="#222222" BorderBrush="#333333" BorderThickness="1" 
+                        CornerRadius="5" Padding="25" Margin="0,0,0,20">
+                    <StackPanel>
+                        <TextBlock Text="💬 Discord Rich Presence" Style="{StaticResource SectionHeaderStyle}"/>
+                        
+                        <TextBlock Text="Discord Application ID:" Style="{StaticResource LabelStyle}"/>
+                        <TextBox Name="TxtDiscordClientId" 
+                                 Background="#1a1a1a" 
+                                 Foreground="{StaticResource TextBrush}"
+                                 BorderBrush="#333333" 
+                                 BorderThickness="1"
+                                 Padding="12,10"
+                                 FontSize="13"
+                                 Margin="0,0,0,15"
+                                 TextChanged="TxtDiscordClientId_TextChanged"/>
+                        
+                        <TextBlock Text="📖 How to set up Discord Rich Presence:" 
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="12"
+                                   Margin="0,0,0,5"/>
+                        <TextBlock Foreground="#888888" FontSize="11" Margin="5,0,0,3">
+                            <Run Text="1. Go to "/>
+                            <Hyperlink NavigateUri="https://discord.com/developers/applications" 
+                                       RequestNavigate="Hyperlink_RequestNavigate"
+                                       Foreground="#7289da">Discord Developer Portal</Hyperlink>
+                        </TextBlock>
+                        <TextBlock Text="2. Create a new application or select an existing one" 
+                                   Foreground="#888888"
+                                   FontSize="11"
+                                   Margin="5,0,0,3"/>
+                        <TextBlock Text="3. Copy the Application ID and paste it above" 
+                                   Foreground="#888888"
+                                   FontSize="11"
+                                   Margin="5,0,0,10"/>
+                        
+                        <TextBlock Text="⚠️ Note: Application must be restarted for changes to take effect" 
+                                   Foreground="#ffa500"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
                 <!-- Database Section -->
                 <Border Background="#222222" BorderBrush="#333333" BorderThickness="1" 
                         CornerRadius="5" Padding="25" Margin="0,0,0,20">

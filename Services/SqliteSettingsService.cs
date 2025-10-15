@@ -30,6 +30,7 @@ namespace MusicPlayer.Services
         private float band6600Hz;
         private string musicFolderPath = string.Empty;
         private bool autoPlayOnStartup;
+        private string? discordClientId;
 
         public SqliteSettingsService()
         {
@@ -140,6 +141,7 @@ namespace MusicPlayer.Services
                 
                 musicFolderPath = GetStringSetting(connection, SettingsKeys.MusicFolderPath, string.Empty) ?? string.Empty;
                 autoPlayOnStartup = GetBoolSetting(connection, SettingsKeys.AutoPlayOnStartup, false);
+                discordClientId = GetStringSetting(connection, SettingsKeys.DiscordClientId, null);
             }
         }
 
@@ -172,6 +174,7 @@ namespace MusicPlayer.Services
                     
                     SetSetting(connection, SettingsKeys.MusicFolderPath, musicFolderPath);
                     SetSetting(connection, SettingsKeys.AutoPlayOnStartup, autoPlayOnStartup.ToString());
+                    SetSetting(connection, SettingsKeys.DiscordClientId, discordClientId ?? string.Empty);
                     var deleteDurationsCmd = connection.CreateCommand();
                     deleteDurationsCmd.CommandText = "DELETE FROM SongDurations";
                     deleteDurationsCmd.ExecuteNonQuery();
@@ -608,6 +611,26 @@ namespace MusicPlayer.Services
             lock (cacheLock)
             {
                 return playCounts.Values.Sum();
+            }
+        }
+
+        public string? GetDiscordClientId()
+        {
+            lock (cacheLock)
+            {
+                return discordClientId;
+            }
+        }
+
+        public void SaveDiscordClientId(string? clientId)
+        {
+            lock (cacheLock)
+            {
+                if (discordClientId != clientId)
+                {
+                    discordClientId = clientId;
+                    isDirty = true;
+                }
             }
         }
 

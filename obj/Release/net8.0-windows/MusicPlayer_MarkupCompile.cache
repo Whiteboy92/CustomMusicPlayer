@@ -10,11 +10,11 @@ none
 false
 TRACE;RELEASE;NET;NET8_0;NETCOREAPP
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\App.xaml
-4-1815962152
+7390293101
 
-11-1729416682
-202-150950354
-MainWindow.xaml;Views\CustomTitleBar\CustomTitleBar.xaml;Views\Player\PlayerControlsView.xaml;Views\Playlist\PlaylistView.xaml;
+31586021647
+2211597133985
+MainWindow.xaml;Views\CustomTitleBar\CustomTitleBar.xaml;Views\Equalizer\EqualizerView.xaml;Views\Player\PlayerControlsView.xaml;Views\Playlist\PlaylistView.xaml;Views\Settings\SettingsView.xaml;Views\Statistics\StatisticsView.xaml;
 
 False
 

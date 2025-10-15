@@ -4,6 +4,7 @@ namespace MusicPlayer.Services.Settings
     {
         public const string MusicFolderPath = "MusicFolderPath";
         public const string AutoPlayOnStartup = "AutoPlayOnStartup";
+        public const string DiscordClientId = "DiscordClientId";
     }
 }
 

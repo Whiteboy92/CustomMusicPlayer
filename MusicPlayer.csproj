@@ -10,8 +10,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="DiscordRichPresence" Version="1.6.1.70" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.20" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.10" />
     <PackageReference Include="NAudio" Version="2.2.1" />
   </ItemGroup>
 

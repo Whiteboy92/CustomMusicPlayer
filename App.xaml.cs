@@ -2,6 +2,7 @@ using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using MusicPlayer.Interfaces;
 using MusicPlayer.Services;
+using MusicPlayer.Services.DiscordRpc;
 
 namespace MusicPlayer;
 
@@ -28,6 +29,8 @@ public partial class App
         services.AddSingleton<IMusicLoaderService, MusicLoaderService>();
         services.AddSingleton<IDurationExtractorService, DurationExtractorService>();
         services.AddSingleton<IShuffleService, ShuffleService>();
+        services.AddSingleton<IDiscordRpcService, DiscordRpcService>();
+        services.AddSingleton<DiscordPresenceUpdater>();
  
         services.AddTransient<IAudioService, AudioService>();
         services.AddTransient<MainWindow>();

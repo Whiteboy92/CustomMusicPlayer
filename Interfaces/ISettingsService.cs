@@ -31,6 +31,10 @@ namespace MusicPlayer.Interfaces
         void ResetDatabase();
         string GetDatabaseFilePath();
         int GetTotalPlayCount();
+        
+        // Discord RPC methods
+        string? GetDiscordClientId();
+        void SaveDiscordClientId(string? clientId);
     }
 }
 
