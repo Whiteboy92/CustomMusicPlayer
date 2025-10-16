@@ -9,60 +9,69 @@ namespace MusicPlayer.Helpers
 {
 	public static class PlaybackHelper
 	{
-	public static void SaveCurrentQueue(ISettingsService settings, PlaylistView playlist, bool isShuffled)
-	{
-		var queuePaths = playlist.Playlist.Select(s => $"{s.FilePath}|{s.IsCompleted}").ToList();
-		settings.SaveCurrentQueue(queuePaths, isShuffled);
-	}
-
-	public static void RestorePlaybackState(ISettingsService settings, PlaylistView playlist, PlayerControlsView player, Dispatcher dispatcher, Action<MusicFile> onSongRestored)
-	{
-		var (savedSongPath, savedPosition) = settings.GetCurrentPlaybackState();
-		
-		if (!StringValidator.HasValue(savedSongPath))
-			return;
-
-		var song = playlist.Playlist.FirstOrDefault(s => s.FilePath == savedSongPath);
-		if (song == null) return;
-
-		var displayedIndex = playlist.GetDisplayedPlaylist().IndexOf(song);
-		if (displayedIndex >= 0)
+		public static void SaveCurrentQueue(ISettingsService settings, PlaylistView playlist, bool isShuffled)
 		{
-			playlist.SelectedIndex = displayedIndex;
-		}
-		else
-		{
-			return;
-		}
-		
-		onSongRestored.Invoke(song);
-		
-		bool autoPlay = settings.GetAutoPlayOnStartup();
-		
-		EventHandler? mediaOpenedHandler = null;
-		mediaOpenedHandler = (_, _) =>
-		{
-			player.MediaOpenedEvent -= mediaOpenedHandler;
+			var currentSelectedSong = playlist.SelectedIndex >= 0 && playlist.SelectedIndex < playlist.GetDisplayedPlaylist().Count
+				? playlist.GetDisplayedPlaylist()[playlist.SelectedIndex]
+				: null;
 			
-			dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+			var queuePaths = playlist.Playlist.Select(s =>
 			{
-				player.Play();
+				var isCompleted = s.IsCompleted && s != currentSelectedSong;
+				return $"{s.FilePath}|{isCompleted}";
+			}).ToList();
+			
+			settings.SaveCurrentQueue(queuePaths, isShuffled);
+		}
+
+		public static void RestorePlaybackState(ISettingsService settings, PlaylistView playlist, PlayerControlsView player, Dispatcher dispatcher, Action<MusicFile> onSongRestored)
+		{
+			var (savedSongPath, savedPosition) = settings.GetCurrentPlaybackState();
+			
+			if (!StringValidator.HasValue(savedSongPath))
+				return;
+
+			var song = playlist.Playlist.FirstOrDefault(s => s.FilePath == savedSongPath);
+			if (song == null) return;
+
+			var displayedIndex = playlist.GetDisplayedPlaylist().IndexOf(song);
+			if (displayedIndex >= 0)
+			{
+				playlist.SelectedIndex = displayedIndex;
+			}
+			else
+			{
+				return;
+			}
+			
+			onSongRestored.Invoke(song);
+			
+			bool autoPlay = settings.GetAutoPlayOnStartup();
+			
+			EventHandler? mediaOpenedHandler = null;
+			mediaOpenedHandler = (_, _) =>
+			{
+				player.MediaOpenedEvent -= mediaOpenedHandler;
 				
-				dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+				dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
 				{
-					player.SetPosition(savedPosition);
+					player.Play();
 					
-					if (!autoPlay)
+					dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
 					{
-						player.Pause();
-					}
+						player.SetPosition(savedPosition);
+						
+						if (!autoPlay)
+						{
+							player.Pause();
+						}
+					}));
 				}));
-			}));
-		};
-		
-		player.MediaOpenedEvent += mediaOpenedHandler;
-		player.LoadSong(song);
-	}
+			};
+			
+			player.MediaOpenedEvent += mediaOpenedHandler;
+			player.LoadSong(song);
+		}
 	}
 }
 

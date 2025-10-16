@@ -353,7 +353,6 @@ namespace MusicPlayer.Views.Player
                 TxtTotalTime.Text = FormatTime(audioService.TotalTime);
                 songTotalDuration = audioService.TotalTime.TotalSeconds;
                 
-                // Raise the MediaOpenedEvent for external subscribers
                 MediaOpenedEvent?.Invoke(this, EventArgs.Empty);
             });
         }

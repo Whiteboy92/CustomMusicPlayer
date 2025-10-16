@@ -62,21 +62,44 @@ namespace MusicPlayer.Helpers
             bool wasShuffled, 
             bool shouldReload)
         {
-            if (hasSavedQueue && !shouldReload)
+            if (hasSavedQueue)
             {
-                var songsToDisplay = new List<MusicFile>();
+                var completionStates = new Dictionary<string, bool>();
+                var savedSongOrder = new List<string>();
+                
                 foreach (var queueEntry in savedQueuePaths)
                 {
                     var parts = queueEntry.Split('|');
                     var path = parts[0];
                     var isCompleted = parts.Length > 1 && bool.Parse(parts[1]);
-                    
+                    completionStates[path] = isCompleted;
+                    savedSongOrder.Add(path);
+                }
+                
+                var songsToDisplay = new List<MusicFile>();
+                foreach (var path in savedSongOrder)
+                {
                     if (songDict.TryGetValue(path, out var song))
                     {
-                        song.IsCompleted = isCompleted;
+                        song.IsCompleted = completionStates[path];
                         songsToDisplay.Add(song);
                     }
                 }
+
+                if (shouldReload)
+                {
+                    var savedPaths = new HashSet<string>(savedSongOrder);
+                    foreach (var song in allSongs)
+                    {
+                        if (!savedPaths.Contains(song.FilePath))
+                        {
+                            song.IsCompleted = false;
+                            songsToDisplay.Add(song);
+                        }
+                    }
+                    return (songsToDisplay, false);
+                }
+                
                 return (songsToDisplay, wasShuffled);
             }
 
