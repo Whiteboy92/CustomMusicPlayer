@@ -9,19 +9,27 @@ public static class DiscordPresenceHelper
 {
     /// <summary>
     /// Extracts artist and song name from a music file name
-    /// Supports formats: "Artist - Song", "Artist – Song", "Artist | Song"
+    /// Supports formats: "Artist - Song", "Artist – Song", "Artist | Song" (when format is "ArtistSong")
+    /// or "Song - Artist", "Song – Artist", "Song | Artist" (when format is "SongArtist")
     /// </summary>
-    public static (string artist, string songName) ExtractArtistAndSongName(string fileName)
+    public static (string artist, string songName) ExtractArtistAndSongName(string fileName, string format = "SongArtist")
     {
         var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
         var separators = new[] { " - ", " – ", " | " };
         
         foreach (var separator in separators)
         {
-            var parts = nameWithoutExt.Split(separator, 2, StringSplitOptions.None);
+            var parts = nameWithoutExt.Split(separator, 2);
             if (parts.Length == 2)
             {
-                return (parts[0].Trim(), parts[1].Trim());
+                if (format == "SongArtist")
+                {
+                    return (parts[1].Trim(), parts[0].Trim()); // artist, songName
+                }
+                else
+                {
+                    return (parts[0].Trim(), parts[1].Trim()); // artist, songName
+                }
             }
         }
         

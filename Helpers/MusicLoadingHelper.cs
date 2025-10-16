@@ -65,10 +65,15 @@ namespace MusicPlayer.Helpers
             if (hasSavedQueue && !shouldReload)
             {
                 var songsToDisplay = new List<MusicFile>();
-                foreach (var path in savedQueuePaths)
+                foreach (var queueEntry in savedQueuePaths)
                 {
+                    var parts = queueEntry.Split('|');
+                    var path = parts[0];
+                    var isCompleted = parts.Length > 1 && bool.Parse(parts[1]);
+                    
                     if (songDict.TryGetValue(path, out var song))
                     {
+                        song.IsCompleted = isCompleted;
                         songsToDisplay.Add(song);
                     }
                 }

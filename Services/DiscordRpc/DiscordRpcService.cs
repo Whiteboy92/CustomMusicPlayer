@@ -40,12 +40,12 @@ public class DiscordRpcService : IDiscordRpcService
                 client = new DiscordRpcClient(clientId);
                 client.Logger = new ConsoleLogger { Level = LogLevel.Warning };
                 
-                client.OnReady += (sender, e) =>
+                client.OnReady += (_, e) =>
                 {
                     Console.WriteLine($"Discord RPC Ready - User: {e.User.Username}");
                 };
 
-                client.OnError += (sender, e) =>
+                client.OnError += (_, e) =>
                 {
                     Console.WriteLine($"Discord RPC Error: {e.Message}");
                 };
@@ -101,7 +101,7 @@ public class DiscordRpcService : IDiscordRpcService
                 },
                 Timestamps = activityStartTime.HasValue 
                     ? new Timestamps { Start = activityStartTime.Value }
-                    : null
+                    : null,
             };
 
             client.SetPresence(presence);

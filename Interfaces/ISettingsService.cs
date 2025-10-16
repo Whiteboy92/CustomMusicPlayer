@@ -7,10 +7,8 @@ namespace MusicPlayer.Interfaces
         void UpdateLastPlayedIndex(int index);
         void SaveAllDurations(Dictionary<string, string> durations);
         Dictionary<string, string> GetAllDurations();
-        int GetPlayCount(string filePath);
         void IncrementPlayCount(string filePath);
         Dictionary<string, int> GetAllPlayCounts();
-        void SaveAllPlayCounts(Dictionary<string, int> songPlayCounts);
         void SaveCurrentPlaybackState(string? songPath, double positionSeconds);
         (string? songPath, double positionSeconds) GetCurrentPlaybackState();
         void SaveCurrentQueue(List<string> queuePaths, bool isShuffled);
@@ -35,6 +33,9 @@ namespace MusicPlayer.Interfaces
         // Discord RPC methods
         string? GetDiscordClientId();
         void SaveDiscordClientId(string? clientId);
+        
+        // Song name format methods
+        string GetSongNameFormat();
     }
 }
 

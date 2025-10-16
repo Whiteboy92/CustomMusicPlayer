@@ -31,6 +31,7 @@ namespace MusicPlayer.Services
         private string musicFolderPath = string.Empty;
         private bool autoPlayOnStartup;
         private string? discordClientId;
+        private string songNameFormat = "SongArtist"; // Default to "Song - Artist" format
 
         public SqliteSettingsService()
         {
@@ -71,7 +72,8 @@ namespace MusicPlayer.Services
 
                 CREATE TABLE IF NOT EXISTS CurrentQueue (
                     Position INTEGER PRIMARY KEY,
-                    FilePath TEXT NOT NULL
+                    FilePath TEXT NOT NULL,
+                    IsCompleted INTEGER NOT NULL DEFAULT 0
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_playcounts ON PlayCounts(PlayCount);
@@ -89,6 +91,27 @@ namespace MusicPlayer.Services
                 VALUES (1, 0.0, 0.0, 0.0, 0.0, 0.0);
                 """;
             command.ExecuteNonQuery();
+
+            var checkColumnCmd = connection.CreateCommand();
+            checkColumnCmd.CommandText = "PRAGMA table_info(CurrentQueue)";
+            using var reader = checkColumnCmd.ExecuteReader();
+            bool hasIsCompletedColumn = false;
+            while (reader.Read())
+            {
+                if (reader.GetString(1) == "IsCompleted")
+                {
+                    hasIsCompletedColumn = true;
+                    break;
+                }
+            }
+            reader.Close();
+            
+            if (!hasIsCompletedColumn)
+            {
+                var alterCmd = connection.CreateCommand();
+                alterCmd.CommandText = "ALTER TABLE CurrentQueue ADD COLUMN IsCompleted INTEGER NOT NULL DEFAULT 0";
+                alterCmd.ExecuteNonQuery();
+            }
         }
 
         private void LoadAllSettingsIntoCache()
@@ -121,11 +144,13 @@ namespace MusicPlayer.Services
                 }
                 currentQueue.Clear();
                 var queueCommand = connection.CreateCommand();
-                queueCommand.CommandText = "SELECT FilePath FROM CurrentQueue ORDER BY Position";
+                queueCommand.CommandText = "SELECT FilePath, IsCompleted FROM CurrentQueue ORDER BY Position";
                 using var queueReader = queueCommand.ExecuteReader();
                 while (queueReader.Read())
                 {
-                    currentQueue.Add(queueReader.GetString(0));
+                    var filePath = queueReader.GetString(0);
+                    var isCompleted = queueReader.GetInt32(1) == 1;
+                    currentQueue.Add($"{filePath}|{isCompleted}");
                 }
                 var eqCommand = connection.CreateCommand();
                 eqCommand.CommandText = "SELECT Band80Hz, Band240Hz, Band750Hz, Band2200Hz, Band6600Hz FROM EqualizerSettings WHERE Id = 1";
@@ -142,6 +167,7 @@ namespace MusicPlayer.Services
                 musicFolderPath = GetStringSetting(connection, SettingsKeys.MusicFolderPath, string.Empty) ?? string.Empty;
                 autoPlayOnStartup = GetBoolSetting(connection, SettingsKeys.AutoPlayOnStartup, false);
                 discordClientId = GetStringSetting(connection, SettingsKeys.DiscordClientId, null);
+                songNameFormat = GetStringSetting(connection, SettingsKeys.SongNameFormat, "SongArtist") ?? "SongArtist";
             }
         }
 
@@ -175,6 +201,7 @@ namespace MusicPlayer.Services
                     SetSetting(connection, SettingsKeys.MusicFolderPath, musicFolderPath);
                     SetSetting(connection, SettingsKeys.AutoPlayOnStartup, autoPlayOnStartup.ToString());
                     SetSetting(connection, SettingsKeys.DiscordClientId, discordClientId ?? string.Empty);
+                    SetSetting(connection, SettingsKeys.SongNameFormat, songNameFormat);
                     var deleteDurationsCmd = connection.CreateCommand();
                     deleteDurationsCmd.CommandText = "DELETE FROM SongDurations";
                     deleteDurationsCmd.ExecuteNonQuery();
@@ -205,10 +232,15 @@ namespace MusicPlayer.Services
 
                     for (int i = 0; i < currentQueue.Count; i++)
                     {
+                        var parts = currentQueue[i].Split('|');
+                        var filePath = parts[0];
+                        var isCompleted = parts.Length > 1 && bool.Parse(parts[1]);
+                        
                         var insertQueueCmd = connection.CreateCommand();
-                        insertQueueCmd.CommandText = "INSERT INTO CurrentQueue (Position, FilePath) VALUES (@position, @path)";
+                        insertQueueCmd.CommandText = "INSERT INTO CurrentQueue (Position, FilePath, IsCompleted) VALUES (@position, @path, @completed)";
                         insertQueueCmd.Parameters.AddWithValue("@position", i);
-                        insertQueueCmd.Parameters.AddWithValue("@path", currentQueue[i]);
+                        insertQueueCmd.Parameters.AddWithValue("@path", filePath);
+                        insertQueueCmd.Parameters.AddWithValue("@completed", isCompleted ? 1 : 0);
                     insertQueueCmd.ExecuteNonQuery();
                     }
                     var updateEqCmd = connection.CreateCommand();
@@ -354,14 +386,6 @@ namespace MusicPlayer.Services
             }
         }
 
-        public int GetPlayCount(string filePath)
-        {
-            lock (cacheLock)
-            {
-                return playCounts.GetValueOrDefault(filePath, 0);
-            }
-        }
-
         public void IncrementPlayCount(string filePath)
         {
             lock (cacheLock)
@@ -380,15 +404,6 @@ namespace MusicPlayer.Services
             lock (cacheLock)
             {
                 return new Dictionary<string, int>(playCounts);
-            }
-        }
-
-        public void SaveAllPlayCounts(Dictionary<string, int> songPlayCounts)
-        {
-            lock (cacheLock)
-            {
-                this.playCounts = new Dictionary<string, int>(songPlayCounts);
-                isDirty = true;
             }
         }
 
@@ -631,6 +646,14 @@ namespace MusicPlayer.Services
                     discordClientId = clientId;
                     isDirty = true;
                 }
+            }
+        }
+
+        public string GetSongNameFormat()
+        {
+            lock (cacheLock)
+            {
+                return songNameFormat;
             }
         }
 

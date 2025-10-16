@@ -9,8 +9,8 @@ namespace MusicPlayer.Views.Playlist
 {
     public partial class PlaylistView
     {
-        public ObservableCollection<MusicFile> Playlist { get; private set; } = new();
-        private ObservableCollection<MusicFile> DisplayedPlaylist { get; set; } = new();
+        public ObservableCollection<MusicFile> Playlist { get; private set; } = [];
+        private ObservableCollection<MusicFile> DisplayedPlaylist { get; set; } = [];
 
         public event EventHandler<MusicFile>? SongSelected;
 
@@ -30,9 +30,12 @@ namespace MusicPlayer.Views.Playlist
             foreach (var song in songs)
             {
                 song.TrackNumber = trackNumber++;
-                song.IsCompleted = false;
                 Playlist.Add(song);
-                DisplayedPlaylist.Add(song);
+
+                if (!song.IsCompleted)
+                {
+                    DisplayedPlaylist.Add(song);
+                }
             }
             
             UpdateEmptyState();
@@ -77,6 +80,8 @@ namespace MusicPlayer.Views.Playlist
 
         public int GetPlaylistCount() => DisplayedPlaylist.Count;
 
+        public ObservableCollection<MusicFile> GetDisplayedPlaylist() => DisplayedPlaylist;
+
         public void MarkCurrentSongAsCompleted()
         {
             if (!PlaybackStateValidator.IsValidIndex(PlaylistBox.SelectedIndex, DisplayedPlaylist.Count)) 
@@ -84,8 +89,7 @@ namespace MusicPlayer.Views.Playlist
             
             int currentIndex = PlaylistBox.SelectedIndex;
             var song = DisplayedPlaylist[currentIndex];
-            
-            // Mark as completed and remove from displayed list
+
             song.IsCompleted = true;
             DisplayedPlaylist.RemoveAt(currentIndex);
             

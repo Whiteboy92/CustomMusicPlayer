@@ -7,7 +7,7 @@ namespace MusicPlayer.Services.DiscordRpc;
 /// <summary>
 /// Handles updating Discord Rich Presence based on current playback state
 /// </summary>
-public class DiscordPresenceUpdater(IDiscordRpcService discordRpcService)
+public class DiscordPresenceUpdater(IDiscordRpcService discordRpcService, ISettingsService settingsService)
 {
     private MusicFile? currentPlayingSong;
 
@@ -32,7 +32,8 @@ public class DiscordPresenceUpdater(IDiscordRpcService discordRpcService)
         var isPlaying = playerControls.IsPlaying;
         var currentPosition = playerControls.GetCurrentPositionSeconds();
         var fileName = currentPlayingSong.FileName;
-        var (artist, songName) = DiscordPresenceHelper.ExtractArtistAndSongName(fileName);
+        var format = settingsService.GetSongNameFormat();
+        var (artist, songName) = DiscordPresenceHelper.ExtractArtistAndSongName(fileName, format);
         var durationSeconds = DiscordPresenceHelper.ParseDurationToSeconds(currentPlayingSong.Duration);
 
         discordRpcService.UpdatePresence(songName, artist, isPlaying, currentPosition, durationSeconds);

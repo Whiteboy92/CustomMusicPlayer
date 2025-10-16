@@ -11,7 +11,7 @@ namespace MusicPlayer.Helpers
 	{
 	public static void SaveCurrentQueue(ISettingsService settings, PlaylistView playlist, bool isShuffled)
 	{
-		var queuePaths = playlist.Playlist.Where(s => !s.IsCompleted).Select(s => s.FilePath).ToList();
+		var queuePaths = playlist.Playlist.Select(s => $"{s.FilePath}|{s.IsCompleted}").ToList();
 		settings.SaveCurrentQueue(queuePaths, isShuffled);
 	}
 
@@ -25,10 +25,17 @@ namespace MusicPlayer.Helpers
 		var song = playlist.Playlist.FirstOrDefault(s => s.FilePath == savedSongPath);
 		if (song == null) return;
 
-		var index = playlist.Playlist.IndexOf(song);
-		playlist.SelectedIndex = index;
+		var displayedIndex = playlist.GetDisplayedPlaylist().IndexOf(song);
+		if (displayedIndex >= 0)
+		{
+			playlist.SelectedIndex = displayedIndex;
+		}
+		else
+		{
+			return;
+		}
 		
-		onSongRestored?.Invoke(song);
+		onSongRestored.Invoke(song);
 		
 		bool autoPlay = settings.GetAutoPlayOnStartup();
 		
