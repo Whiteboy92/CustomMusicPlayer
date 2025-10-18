@@ -10,11 +10,11 @@ none
 false
 TRACE;;NET;NET8_0;NETCOREAPP
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\App.xaml
-7390293101
+9-892517534
 
-3391079997
+36544532989
 2211597133985
-MainWindow.xaml;Views\CustomTitleBar\CustomTitleBar.xaml;Views\Equalizer\EqualizerView.xaml;Views\Player\PlayerControlsView.xaml;Views\Playlist\PlaylistView.xaml;Views\Settings\SettingsView.xaml;Views\Statistics\StatisticsView.xaml;
+MainWindow.xaml;Views\CustomTitleBar\CustomTitleBar.xaml;Views\Equalizer\EqualizerView.xaml;Views\Player\PlayerControlsView.xaml;Views\Playlists\PlaylistsView.xaml;Views\Playlist\PlaylistView.xaml;Views\Settings\SettingsView.xaml;Views\Statistics\StatisticsView.xaml;Windows\CreatePlaylistWindow\CreatePlaylistWindow.xaml;
 
 False
 

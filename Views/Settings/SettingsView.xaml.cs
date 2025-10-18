@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Windows;
 using System.Windows.Navigation;
 
@@ -47,12 +47,12 @@ namespace MusicPlayer.Views.Settings
         private void BtnResetDatabase_Click(object sender, RoutedEventArgs e)
         {
             var result = MessageBox.Show(
-                "⚠️ WARNING ⚠️\n\n" +
+                "âš ï¸ WARNING âš ï¸\n\n" +
                 "This will permanently delete:\n" +
-                "• All play counts and statistics\n" +
-                "• Cached song durations\n" +
-                "• Current queue and playback state\n" +
-                "• All equalizer and volume settings\n\n" +
+                "â€¢ All play counts and statistics\n" +
+                "â€¢ Cached song durations\n" +
+                "â€¢ Current queue and playback state\n" +
+                "â€¢ All equalizer and volume settings\n\n" +
                 "This action CANNOT be undone!\n\n" +
                 "Are you absolutely sure you want to reset the database?",
                 "Reset Database - Confirmation",
@@ -81,8 +81,8 @@ namespace MusicPlayer.Views.Settings
             var result = MessageBox.Show(
                 "Clear all play counts and listening history?\n\n" +
                 "This will:\n" +
-                "• Reset all play counts to 0\n" +
-                "• Clear statistics\n\n" +
+                "â€¢ Reset all play counts to 0\n" +
+                "â€¢ Clear statistics\n\n" +
                 "Cached durations and settings will be preserved.\n\n" +
                 "Continue?",
                 "Clear Play History",
@@ -120,9 +120,13 @@ namespace MusicPlayer.Views.Settings
                 });
                 e.Handled = true;
             }
-            catch
+            catch (Exception ex)
             {
-                // ignored
+                MessageBox.Show(
+                    $"Error opening link:\n\n{ex.Message}",
+                    "Navigation Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
     }

@@ -1,8 +1,9 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Threading;
 using MusicPlayer.Helpers;
 using MusicPlayer.Interfaces;
 using MusicPlayer.Models;
+using MusicPlayer.Services;
 using MusicPlayer.Services.DiscordRpc;
 using MusicPlayer.Validation;
 
@@ -16,6 +17,8 @@ public partial class MainWindow
     private readonly IShuffleService shuffleService;
     private readonly IDiscordRpcService discordRpc;
     private readonly DiscordPresenceUpdater discordPresenceUpdater;
+    private readonly PlaybackStatePersistence playbackStatePersistence;
+    private readonly PlaylistManager playlistManager;
     private readonly DispatcherTimer? savePositionTimer;
     private readonly DispatcherTimer? memoryPositionTimer;
     private readonly DispatcherTimer? discordUpdateTimer;
@@ -23,6 +26,8 @@ public partial class MainWindow
     private string? currentSongPath;
     private double currentSongPosition;
     private bool songJustFinished;
+    private int? currentPlaylistId;
+    private List<MusicFile> currentPlaylistSongs = new();
 
     public MainWindow(
         IMusicLoaderService musicLoaderService, 
@@ -30,7 +35,9 @@ public partial class MainWindow
         IDurationExtractorService durationExtractorService,
         IShuffleService shuffleService,
         IDiscordRpcService discordRpcService,
-        DiscordPresenceUpdater discordPresenceUpdater)
+        DiscordPresenceUpdater discordPresenceUpdater,
+        PlaybackStatePersistence playbackStatePersistence,
+        PlaylistManager playlistManager)
     {
         InitializeComponent();
 
@@ -40,6 +47,9 @@ public partial class MainWindow
         this.shuffleService = shuffleService;
         discordRpc = discordRpcService;
         this.discordPresenceUpdater = discordPresenceUpdater;
+        this.playbackStatePersistence = playbackStatePersistence;
+        this.playlistManager = playlistManager;
+        
         SubscribeToEvents();
         
         memoryPositionTimer = new DispatcherTimer
@@ -113,19 +123,7 @@ public partial class MainWindow
 
     private void SaveCurrentPlaybackState()
     {
-        if (PlaybackStateValidator.IsValidPlaybackState(currentSongPath, currentSongPosition) && 
-            PlaybackStateValidator.HasPlayablePosition(currentSongPosition))
-        {
-            settings.SaveCurrentPlaybackState(currentSongPath, currentSongPosition);
-
-            if (!string.IsNullOrEmpty(currentSongPath))
-            {
-                var cumulativeTime = PlayerControlsView.GetCumulativePlayedTime();
-                settings.SaveCumulativePlayedTime(currentSongPath, cumulativeTime);
-            }
-            
-            settings.FlushToDisk();
-        }
+        playbackStatePersistence.SaveCurrentState(currentSongPath, currentSongPosition, currentPlaylistId, PlayerControlsView);
     }
 
     private void SaveCurrentQueue()
@@ -138,20 +136,14 @@ public partial class MainWindow
         SaveCurrentSongPlayCountIfNeeded();
         SaveFinalPlaybackState();
         SaveCurrentQueue();
+        settings.SaveCurrentPlaylistId(currentPlaylistId);
         discordPresenceUpdater.ClearPresence();
         DisposeResources();
     }
 
     private void SaveFinalPlaybackState()
     {
-        currentSongPath = PlayerControlsView.GetCurrentSongPath();
-        currentSongPosition = PlayerControlsView.GetCurrentPositionSeconds();
-
-        if (StringValidator.HasValue(currentSongPath))
-        {
-            settings.SaveCurrentPlaybackState(currentSongPath, currentSongPosition);
-            settings.FlushToDisk();
-        }
+        playbackStatePersistence.SaveFinalState(PlayerControlsView, currentPlaylistId);
     }
 
     private void DisposeResources()
@@ -163,15 +155,66 @@ public partial class MainWindow
 
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        PlaylistsView.Initialize(settings, musicLoader);
+        PlaylistsView.PlaylistCreated += PlaylistsView_PlaylistCreated;
+        PlaylistsView.PlaylistEdited += PlaylistsView_PlaylistEdited;
+        PlaylistsView.PlaylistDeleted += PlaylistsView_PlaylistDeleted;
+        
+        var playlists = settings.GetAllPlaylists();
+        var (defaultQueueName, _, _) = playlistManager.GetDefaultQueueInfo();
+        StatisticsView.InitializePlaylistDropdown(playlists, defaultQueueName);
+        StatisticsView.PlaylistSelectionChanged += StatisticsView_PlaylistSelectionChanged;
+        
         LoadSettingsIntoMusicLoader();
         LoadSettingsIntoUi();
-        LoadMusicFromFolder();
         LoadEqualizerSettings();
 
         var savedVolume = settings.GetVolumePercent();
         PlayerControlsView.SetVolumePercent(savedVolume);
         
         InitializeDiscordRpc();
+        PopulatePlaylistDropdown();
+        
+        var savedPlaylistId = settings.GetCurrentPlaylistId();
+        if (savedPlaylistId is >= -1)
+        {
+            RestoreSavedPlaylist();
+        }
+        else
+        {
+            LoadMusicFromFolder();
+        }
+    }
+
+    private void RestoreSavedPlaylist()
+    {
+        var savedPlaylistId = settings.GetCurrentPlaylistId();
+        
+        if (savedPlaylistId is >= -1)
+        {
+            for (int i = 0; i < PlaylistDropdown.Items.Count; i++)
+            {
+                if (PlaylistDropdown.Items[i] is PlaylistDropdownItem item && item.Id == savedPlaylistId.Value)
+                {
+                    PlaylistDropdown.SelectedIndex = i;
+                    currentPlaylistId = savedPlaylistId.Value;
+                    
+                    if (savedPlaylistId.Value == -1)
+                    {
+                        LoadMusicFromFolder();
+                    }
+                    else
+                    {
+                        LoadPlaylist(savedPlaylistId.Value);
+                    }
+                    return;
+                }
+            }
+        }
+        
+        currentPlaylistId = -1;
+        PlaylistDropdown.SelectedIndex = 0;
+        LoadMusicFromFolder();
     }
 
     private void LoadSettingsIntoMusicLoader()
@@ -216,8 +259,13 @@ public partial class MainWindow
     
     private void LoadStatistics()
     {
-        var allSongs = PlaylistView.Playlist.ToList();
-        StatisticsView.LoadStatistics(allSongs);
+        var allSongs = currentPlaylistSongs.ToList();
+        var playlistCounts = settings.GetPlayCountsForPlaylist(currentPlaylistId);
+        var cachedDurations = settings.GetAllDurations();
+        
+        PlaylistLoadingHelper.ApplyMetadataToSongs(allSongs, playlistCounts, cachedDurations);
+        
+        StatisticsView.LoadStatistics(allSongs, currentPlaylistId);
     }
     
     private void EqualizerView_EqualizerChanged(object? sender, (float band80, float band240, float band750, float band2200, float band6600) e)
@@ -235,10 +283,10 @@ public partial class MainWindow
         PlaybackHelper.RestorePlaybackState(settings, PlaylistView, PlayerControlsView, this.Dispatcher, song =>
         {
             discordPresenceUpdater.SetCurrentSong(song);
-        });
+        }, currentPlaylistId);
     }
 
-    private async void LoadMusicFromFolder()
+    private async void LoadMusicFromFolder(bool forceReload = false)
     {
         try
         {
@@ -249,7 +297,7 @@ public partial class MainWindow
             int databaseSongCount = settings.GetDatabaseSongCount();
             var (savedQueuePaths, wasShuffled) = settings.GetCurrentQueue();
             bool hasSavedQueue = savedQueuePaths is { Count: > 0 };
-            bool shouldReload = (currentFileCount != databaseSongCount) || (!hasSavedQueue && PlaylistView.GetPlaylistCount() == 0);
+            bool shouldReload = forceReload || (currentFileCount != databaseSongCount) || (!hasSavedQueue && PlaylistView.GetPlaylistCount() == 0);
 
             if (shouldReload || hasSavedQueue)
             {
@@ -262,6 +310,8 @@ public partial class MainWindow
                 var (songsToDisplay, newShuffleState) = MusicLoadingHelper.DetermineSongsToDisplay(
                     allSongs, songDict, savedQueuePaths, hasSavedQueue, wasShuffled, shouldReload);
                 
+                currentPlaylistSongs = allSongs;
+                currentPlaylistId = -1;
                 isShuffled = newShuffleState;
                 DisplayPlaylist(songsToDisplay);
                 
@@ -309,7 +359,7 @@ public partial class MainWindow
             if (song == null) { return; }
             
             song.PlayCount++;
-            settings.IncrementPlayCount(song.FilePath);
+            settings.IncrementPlayCountForPlaylist(song.FilePath, currentPlaylistId);
             LoadStatistics();
             
             if (PlaybackStateValidator.HasPlaylistItems(PlaylistView.GetPlaylistCount()))
@@ -354,7 +404,6 @@ public partial class MainWindow
         discordPresenceUpdater.SetCurrentSong(song);
         PlayerControlsView.PlaySong(song);
         
-        // Restore cumulative time for newly selected song
         var cumulativeTime = settings.GetCumulativePlayedTime(song.FilePath);
         PlayerControlsView.SetCumulativePlayedTime(cumulativeTime);
         
@@ -392,14 +441,13 @@ public partial class MainWindow
         discordPresenceUpdater.SetCurrentSong(song);
         PlayerControlsView.PlaySong(song);
         
-        // Restore cumulative time for newly selected song
         var cumulativeTime = settings.GetCumulativePlayedTime(song.FilePath);
         PlayerControlsView.SetCumulativePlayedTime(cumulativeTime);
         
         settings.UpdateLastPlayedIndex(PlaylistView.SelectedIndex);
     }
 
-    private async void PlayerControlsView_ShuffleRequested(object? sender, EventArgs e)
+    private void PlayerControlsView_ShuffleRequested(object? sender, EventArgs e)
     {
         try
         {
@@ -408,99 +456,81 @@ public partial class MainWindow
                 MessageBox.Show("No songs in playlist.", "No Songs", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            
+
+
             SaveCurrentSongPlayCountIfNeeded();
-            
-            var allSongs = await LoadAllSongsWithMetadata();
-            var shuffledQueue = shuffleService.CreateShuffledQueue(allSongs);
-            
+
+
+            var shuffledQueue = shuffleService.CreateShuffledQueue(currentPlaylistSongs);
+
+
             ApplyShuffledQueue(shuffledQueue);
         }
         catch (Exception ex)
         {
             MessageBox.Show(
-                $"Error during shuffle:\n\n{ex.Message}", 
-                "Shuffle Error", 
-                MessageBoxButton.OK, 
+                $"Error during shuffle:\n\n{ex.Message}",
+                "Shuffle Error",
+
+                MessageBoxButton.OK,
+
                 MessageBoxImage.Error);
         }
     }
 
     private void SaveCurrentSongPlayCountIfNeeded()
     {
+        playbackStatePersistence.SaveCurrentSongPlayCount(PlaylistView, PlayerControlsView, currentPlaylistId);
+        
+        // Reload statistics if play count was incremented
         if (PlaybackStateValidator.IsValidIndex(PlaylistView.SelectedIndex, PlaylistView.GetPlaylistCount()))
         {
             var currentSong = PlaylistView.GetSongAtIndex(PlaylistView.SelectedIndex);
-            if (currentSong != null)
+            if (currentSong != null && PlayerControlsView.WasPlayedEnough())
             {
-                // Always save cumulative time
-                var cumulativeTime = PlayerControlsView.GetCumulativePlayedTime();
-                settings.SaveCumulativePlayedTime(currentSong.FilePath, cumulativeTime);
-                
-                // Check if played enough to increment play count
-                if (PlayerControlsView.WasPlayedEnough())
-                {
-                    currentSong.PlayCount++;
-                    settings.IncrementPlayCount(currentSong.FilePath);
-                    LoadStatistics();
-                    
-                    // Clear cumulative time after counting as played
-                    settings.SaveCumulativePlayedTime(currentSong.FilePath, 0);
-                }
-                
-                settings.FlushToDisk();
+                LoadStatistics();
             }
         }
-    }
-
-    private async Task<List<MusicFile>> LoadAllSongsWithMetadata()
-    {
-        var allSongs = await musicLoader.LoadMusicFromFolderAsync();
-        var cachedPlayCounts = settings.GetAllPlayCounts();
-        var cachedDurations = settings.GetAllDurations();
-
-        foreach (var song in allSongs)
-        {
-            if (cachedPlayCounts.TryGetValue(song.FilePath, out var playCount))
-            {
-                song.PlayCount = playCount;
-            }
-            if (cachedDurations.TryGetValue(song.FilePath, out var duration))
-            {
-                song.Duration = duration;
-            }
-        }
-
-        return allSongs;
     }
 
     private async void ApplyShuffledQueue(List<MusicFile> shuffledQueue)
     {
-        isShuffled = true;
-
-        if (PlaybackStateValidator.HasPlaylistItems(shuffledQueue.Count))
+        try
         {
-            var firstSong = shuffledQueue[0];
+            isShuffled = true;
 
-            PlaylistView.LoadPlaylist(shuffledQueue);
-            PlaylistView.SelectedIndex = 0;
-            SaveCurrentQueue();
-
-            await Dispatcher.InvokeAsync(() =>
+            if (PlaybackStateValidator.HasPlaylistItems(shuffledQueue.Count))
             {
-                discordPresenceUpdater.SetCurrentSong(firstSong);
-                PlayerControlsView.PlaySong(firstSong);
-                
-                var cumulativeTime = settings.GetCumulativePlayedTime(firstSong.FilePath);
-                PlayerControlsView.SetCumulativePlayedTime(cumulativeTime);
-            }, DispatcherPriority.ApplicationIdle);
+                var firstSong = shuffledQueue[0];
 
-            settings.UpdateLastPlayedIndex(0);
+                PlaylistView.LoadPlaylist(shuffledQueue);
+                PlaylistView.SelectedIndex = 0;
+                SaveCurrentQueue();
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    discordPresenceUpdater.SetCurrentSong(firstSong);
+                    PlayerControlsView.PlaySong(firstSong);
+                
+                    var cumulativeTime = settings.GetCumulativePlayedTime(firstSong.FilePath);
+                    PlayerControlsView.SetCumulativePlayedTime(cumulativeTime);
+                }, DispatcherPriority.ApplicationIdle);
+
+                settings.UpdateLastPlayedIndex(0);
+            }
+            else
+            {
+                PlaylistView.LoadPlaylist(shuffledQueue);
+                SaveCurrentQueue();
+            }
         }
-        else
+        catch (Exception ex)
         {
-            PlaylistView.LoadPlaylist(shuffledQueue);
-            SaveCurrentQueue();
+            MessageBox.Show(
+                $"Error applying shuffled queue:\n\n{ex.Message}",
+                "Shuffle Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
     
@@ -525,8 +555,7 @@ public partial class MainWindow
         }
         else
         {
-            PlayerControlsView.Stop();
-            LoadStatistics();
+            ResetPlaylistAndPlayFromStart();
         }
     }
 
@@ -538,6 +567,28 @@ public partial class MainWindow
         discordPresenceUpdater.SetCurrentSong(song);
         PlayerControlsView.PlaySong(song);
         settings.UpdateLastPlayedIndex(PlaylistView.SelectedIndex);
+    }
+
+    private void ResetPlaylistAndPlayFromStart()
+    {
+        var songs = PlaylistView.Playlist.ToList();
+        foreach (var song in songs)
+        {
+            song.IsCompleted = false;
+        }
+        
+        PlaylistView.LoadPlaylist(songs);
+        
+        if (PlaybackStateValidator.HasPlaylistItems(PlaylistView.GetPlaylistCount()))
+        {
+            PlaylistView.SelectedIndex = 0;
+            PlayNextSong();
+        }
+        else
+        {
+            PlayerControlsView.Stop();
+            LoadStatistics();
+        }
     }
 
     private async void SettingsView_MusicFolderChangeRequested(object? sender, EventArgs e)
@@ -566,7 +617,8 @@ public partial class MainWindow
                     MessageBoxImage.Information);
             
                 await Task.Delay(300);
-                LoadMusicFromFolder();
+                LoadMusicFromFolder(forceReload: true);
+                PlaylistsView.LoadPlaylists();
             }
         }
         catch (Exception ex)
@@ -595,7 +647,8 @@ public partial class MainWindow
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
             
-            LoadMusicFromFolder();
+            LoadMusicFromFolder(forceReload: true);
+            PlaylistsView.LoadPlaylists();
         }
         catch (Exception ex)
         {
@@ -648,6 +701,171 @@ public partial class MainWindow
     {
         settings.SaveDiscordClientId(e);
         settings.FlushToDisk();
+    }
+
+    private void PopulatePlaylistDropdown()
+    {
+        PlaylistDropdown.SelectionChanged -= PlaylistDropdown_SelectionChanged;
+        
+        playlistManager.PopulateDropdown(PlaylistDropdown);
+        
+        if (currentPlaylistId.HasValue)
+        {
+            playlistManager.SetDropdownSelection(PlaylistDropdown, currentPlaylistId.Value);
+        }
+        else
+        {
+            PlaylistDropdown.SelectedIndex = 0;
+        }
+        
+        PlaylistDropdown.SelectionChanged += PlaylistDropdown_SelectionChanged;
+    }
+
+    private void PlaylistDropdown_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (PlaylistDropdown.SelectedItem is PlaylistDropdownItem item)
+        {
+            if (item.Id == -1)
+            {
+                currentPlaylistId = -1;
+                LoadMusicFromFolder(forceReload: true);
+            }
+            else
+            {
+                currentPlaylistId = item.Id;
+                LoadPlaylist(item.Id);
+            }
+            
+            LoadStatistics();
+        }
+    }
+
+    private async void LoadPlaylist(int playlistId)
+    {
+        var playlistSongs = await PlaylistLoadingHelper.LoadPlaylistSongsAsync(playlistId, musicLoader, settings);
+        
+        if (playlistSongs.Count == 0)
+        {
+            var playlist = settings.GetPlaylistById(playlistId);
+            if (playlist == null)
+            {
+                MessageBox.Show("Playlist not found.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+        }
+
+        currentPlaylistSongs = playlistSongs;
+        isShuffled = false;
+        DisplayPlaylist(playlistSongs);
+        
+        await Task.Delay(100);
+        RestorePlaybackState();
+    }
+
+    private void PlaylistsView_PlaylistCreated(object? sender, EventArgs e)
+    {
+        PopulatePlaylistDropdown();
+        
+        var playlists = settings.GetAllPlaylists();
+        var (defaultQueueName, _, _) = playlistManager.GetDefaultQueueInfo();
+        StatisticsView.InitializePlaylistDropdown(playlists, defaultQueueName);
+    }
+
+    private async void PlaylistsView_PlaylistEdited(object? sender, int editedPlaylistId)
+    {
+        PopulatePlaylistDropdown();
+        PlaylistsView.LoadPlaylists();
+        
+        var playlists = settings.GetAllPlaylists();
+        var (defaultQueueName, _, _) = playlistManager.GetDefaultQueueInfo();
+        StatisticsView.InitializePlaylistDropdown(playlists, defaultQueueName);
+        
+        if (currentPlaylistId == editedPlaylistId)
+        {
+            // Special handling for default queue - just update the dropdown name, queue stays the same
+            if (editedPlaylistId == -1)
+            {
+                playlistManager.SetDropdownSelection(PlaylistDropdown, editedPlaylistId);
+                return;
+            }
+            
+            var currentlyPlayingSongPath = PlayerControlsView.GetCurrentSongPath();
+            
+            var playlist = settings.GetPlaylistById(editedPlaylistId);
+            if (playlist == null)
+            {
+                currentPlaylistId = -1;
+                PlaylistDropdown.SelectedIndex = 0;
+                LoadMusicFromFolder(forceReload: true);
+                return;
+            }
+            
+            var songStillInPlaylist = !string.IsNullOrEmpty(currentlyPlayingSongPath) && 
+                                      playlist.SongFilePaths.Contains(currentlyPlayingSongPath);
+            
+            await ReloadEditedPlaylist(editedPlaylistId, songStillInPlaylist);
+            
+            playlistManager.SetDropdownSelection(PlaylistDropdown, editedPlaylistId);
+            
+            LoadStatistics();
+        }
+    }
+
+    private async Task ReloadEditedPlaylist(int playlistId, bool songStillInPlaylist)
+    {
+        var playlistSongs = await PlaylistLoadingHelper.LoadPlaylistSongsAsync(playlistId, musicLoader, settings);
+        
+        currentPlaylistSongs = playlistSongs;
+        isShuffled = false;
+        DisplayPlaylist(playlistSongs);
+        
+        if (!songStillInPlaylist)
+        {
+            PlayerControlsView.Stop();
+            
+            if (PlaylistView.GetPlaylistCount() > 0)
+            {
+                PlaylistView.SelectedIndex = 0;
+                var firstSong = PlaylistView.GetSongAtIndex(0);
+                if (firstSong != null)
+                {
+                    PlayerControlsView.LoadSong(firstSong);
+                    discordPresenceUpdater.SetCurrentSong(firstSong);
+                    settings.SaveCurrentPlaybackState(firstSong.FilePath, 0, currentPlaylistId);
+                }
+            }
+        }
+    }
+
+    private void PlaylistsView_PlaylistDeleted(object? sender, EventArgs e)
+    {
+        PopulatePlaylistDropdown();
+        
+        currentPlaylistId = -1;
+        PlaylistDropdown.SelectedIndex = 0;
+        LoadMusicFromFolder(forceReload: true);
+        LoadStatistics();
+        
+        var playlists = settings.GetAllPlaylists();
+        var (defaultQueueName, _, _) = playlistManager.GetDefaultQueueInfo();
+        StatisticsView.InitializePlaylistDropdown(playlists, defaultQueueName);
+    }
+
+    private async void StatisticsView_PlaylistSelectionChanged(object? sender, int? playlistId)
+    {
+        try
+        {
+            var songsToAnalyze = await PlaylistLoadingHelper.LoadStatisticsSongsAsync(playlistId, musicLoader, settings);
+            StatisticsView.LoadStatistics(songsToAnalyze, playlistId.HasValue && playlistId.Value != -1 ? playlistId.Value : null);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Error loading statistics:\n\n{ex.Message}",
+                "Statistics Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private void InitializeDiscordRpc()

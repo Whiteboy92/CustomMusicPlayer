@@ -31,6 +31,8 @@ public partial class App
         services.AddSingleton<IShuffleService, ShuffleService>();
         services.AddSingleton<IDiscordRpcService, DiscordRpcService>();
         services.AddSingleton<DiscordPresenceUpdater>();
+        services.AddSingleton<PlaybackStatePersistence>();
+        services.AddSingleton<PlaylistManager>();
  
         services.AddTransient<IAudioService, AudioService>();
         services.AddTransient<MainWindow>();
@@ -52,7 +54,7 @@ public partial class App
         base.OnExit(e);
     }
 
-    private void App_DispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
+    private static void App_DispatcherUnhandledException(object sender, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
     {
         try
         {
@@ -68,7 +70,7 @@ public partial class App
         }
     }
 
-    private void CurrentDomain_UnhandledException(object? sender, UnhandledExceptionEventArgs e)
+    private static void CurrentDomain_UnhandledException(object? sender, UnhandledExceptionEventArgs e)
     {
         var message = e.ExceptionObject is Exception ex ? ($"{ex.Message}\n\n{ex.StackTrace}") : e.ExceptionObject.ToString();
         MessageBox.Show(

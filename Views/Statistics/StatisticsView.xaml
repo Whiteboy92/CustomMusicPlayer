@@ -40,11 +40,12 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
             <!-- Header -->
-            <StackPanel Grid.Row="0" Margin="30,30,30,30">
+            <StackPanel Grid.Row="0" Margin="30,30,30,20">
                 <TextBlock Text="📊 Listening Statistics" 
                            FontSize="24" 
                            FontWeight="Bold"
@@ -58,8 +59,16 @@
                            HorizontalAlignment="Center"/>
             </StackPanel>
 
+            <!-- Playlist Dropdown -->
+            <ComboBox Grid.Row="1" x:Name="PlaylistDropdown"
+                     SelectionChanged="PlaylistDropdown_SelectionChanged"
+                     Style="{StaticResource CustomComboBoxStyle}"
+                     Margin="30,0,30,5">
+                <ComboBoxItem Content="Default Queue" IsSelected="True"/>
+            </ComboBox>
+
             <!-- Column Headers -->
-            <Border Grid.Row="1" Background="#2d2d2d" 
+            <Border Grid.Row="2" Background="#2d2d2d" 
                     BorderThickness="0,1,0,1" BorderBrush="#333333"
                     Padding="20,12" Margin="0">
                 <Grid>
@@ -94,7 +103,7 @@
             </Border>
 
             <!-- Statistics List -->
-            <ListBox Grid.Row="2" Name="StatsList" 
+            <ListBox Grid.Row="3" Name="StatsList" 
                      Background="Transparent" 
                      Foreground="White"
                      BorderThickness="0"
@@ -188,7 +197,7 @@
             </ListBox>
 
             <!-- Empty State -->
-            <StackPanel Grid.Row="2" 
+            <StackPanel Grid.Row="3" 
                         x:Name="EmptyState"
                         VerticalAlignment="Center" 
                         HorizontalAlignment="Center"
