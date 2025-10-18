@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using MusicPlayer.Interfaces;
+using MusicPlayer.Validation;
 
 namespace MusicPlayer.Windows.CreatePlaylistWindow
 {
@@ -189,10 +190,19 @@ namespace MusicPlayer.Windows.CreatePlaylistWindow
         private void BtnSave_Click(object sender, RoutedEventArgs e)
         {
             var playlistName = TxtPlaylistName.Text.Trim();
+            var genre = string.IsNullOrWhiteSpace(TxtGenre.Text) ? null : TxtGenre.Text.Trim();
+            var tags = string.IsNullOrWhiteSpace(TxtTags.Text) ? null : TxtTags.Text.Trim();
 
-            if (string.IsNullOrEmpty(playlistName))
+            var (isValid, errorMessage) = PlaylistValidator.ValidateAllFields(
+                playlistName, 
+                genre, 
+                tags, 
+                settings, 
+                isEditMode ? existingPlaylist?.Id : null);
+
+            if (!isValid)
             {
-                MessageBox.Show("Please enter a playlist name.", "Validation Error",
+                MessageBox.Show(errorMessage, "Validation Error",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 TxtPlaylistName.Focus();
                 return;
@@ -200,8 +210,6 @@ namespace MusicPlayer.Windows.CreatePlaylistWindow
 
             try
             {
-                var genre = string.IsNullOrWhiteSpace(TxtGenre.Text) ? null : TxtGenre.Text.Trim();
-                var tags = string.IsNullOrWhiteSpace(TxtTags.Text) ? null : TxtTags.Text.Trim();
 
                 if (isEditMode && existingPlaylist != null)
                 {

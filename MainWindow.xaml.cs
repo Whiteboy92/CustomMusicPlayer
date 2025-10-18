@@ -137,7 +137,6 @@ public partial class MainWindow
         SaveFinalPlaybackState();
         SaveCurrentQueue();
         settings.SaveCurrentPlaylistId(currentPlaylistId);
-        discordPresenceUpdater.ClearPresence();
         DisposeResources();
     }
 
