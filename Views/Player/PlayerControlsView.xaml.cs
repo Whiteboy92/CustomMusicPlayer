@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
 using MusicPlayer.Interfaces;
@@ -9,7 +9,6 @@ namespace MusicPlayer.Views.Player
 {
     public partial class PlayerControlsView : IDisposable
     {
-        // ──────────────── Fields ────────────────
         private readonly IAudioService audioService;
         private readonly DispatcherTimer timer;
         private DispatcherTimer? volumePopupTimer;
@@ -26,7 +25,6 @@ namespace MusicPlayer.Views.Player
         private string? currentSongPath;
         private const short SongPercentagePlayed = 65;
 
-        // ──────────────── Events ────────────────
         public event EventHandler? PlayRequested;
         public event EventHandler? PreviousRequested;
         public event EventHandler? NextRequested;
@@ -35,7 +33,6 @@ namespace MusicPlayer.Views.Player
         public event EventHandler<bool>? SongFinished;
         public event EventHandler? MediaOpenedEvent;
 
-        // ──────────────── Constructors ────────────────
         public PlayerControlsView() : this(new AudioService()) { }
 
         private PlayerControlsView(IAudioService audioServiceInstance)
@@ -54,7 +51,6 @@ namespace MusicPlayer.Views.Player
             UpdateVolumeIcon();
         }
 
-        // ──────────────── Volume Handling ────────────────
         public void SetVolumePercent(double percent)
         {
             var clamped = Math.Max(0, Math.Min(100, percent));
@@ -119,7 +115,6 @@ namespace MusicPlayer.Views.Player
         private void BtnVolumeUp_Click(object sender, RoutedEventArgs e) =>
             VolumeSlider.Value = Math.Min(100, VolumeSlider.Value + 1);
 
-        // ──────────────── Playback Controls ────────────────
         public bool IsPlaying => audioService.IsPlaying;
         public bool HasSource => audioService.HasSource;
 
@@ -228,7 +223,6 @@ namespace MusicPlayer.Views.Player
         private void BtnShuffle_Click(object sender, RoutedEventArgs e) =>
             ShuffleRequested?.Invoke(this, EventArgs.Empty);
 
-        // ──────────────── Progress Bar Handling ────────────────
         private void Timer_Tick(object? sender, EventArgs e)
         {
             if (isUserDraggingSlider || !audioService.HasSource) return;
@@ -285,7 +279,6 @@ namespace MusicPlayer.Views.Player
         private void UpdatePlayPauseButtonState() =>
             BtnPlayPause.Content = isCurrentlyPlaying ? "⏸ Pause" : "▶ Play";
 
-        // ──────────────── Audio Service Events ────────────────
         private void AudioService_MediaOpened(object? sender, EventArgs e)
         {
             Dispatcher.Invoke(() =>
@@ -316,7 +309,6 @@ namespace MusicPlayer.Views.Player
             });
         }
 
-        // ──────────────── Position Handling ────────────────
         public double GetCurrentPositionSeconds() => audioService.CurrentTime.TotalSeconds;
 
         public void SetPosition(double seconds)
@@ -333,7 +325,6 @@ namespace MusicPlayer.Views.Player
 
         public string? GetCurrentSongPath() => currentSongPath;
 
-        // ──────────────── Playback Tracking ────────────────
         public bool WasPlayedEnough()
         {
             if (songTotalDuration <= 0) return false;
@@ -351,7 +342,6 @@ namespace MusicPlayer.Views.Player
         public void SetCumulativePlayedTime(double seconds) => cumulativePlayedSeconds = seconds;
         public double GetCumulativePlayedTime() => cumulativePlayedSeconds;
 
-        // ──────────────── Equalizer ────────────────
         public void SetBand80Hz(float gain) => audioService.Band80Hz = gain;
         public void SetBand240Hz(float gain) => audioService.Band240Hz = gain;
         public void SetBand750Hz(float gain) => audioService.Band750Hz = gain;
@@ -362,7 +352,6 @@ namespace MusicPlayer.Views.Player
             (audioService.Band80Hz, audioService.Band240Hz, audioService.Band750Hz,
              audioService.Band2200Hz, audioService.Band6600Hz);
 
-        // ──────────────── IDisposable ────────────────
         public void Dispose()
         {
             if (disposed) return;

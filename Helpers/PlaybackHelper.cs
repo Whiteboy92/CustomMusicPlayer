@@ -24,9 +24,9 @@ namespace MusicPlayer.Helpers
 			settings.SaveCurrentQueue(queuePaths, isShuffled);
 		}
 
-		public static void RestorePlaybackState(ISettingsService settings, PlaylistView playlist, PlayerControlsView player, Dispatcher dispatcher, Action<MusicFile> onSongRestored)
+		public static void RestorePlaybackState(ISettingsService settings, PlaylistView playlist, PlayerControlsView player, Dispatcher dispatcher, Action<MusicFile> onSongRestored, int? playlistId)
 		{
-			var (savedSongPath, savedPosition) = settings.GetCurrentPlaybackState();
+			var (savedSongPath, savedPosition) = settings.GetCurrentPlaybackState(playlistId);
 			
 			if (!StringValidator.HasValue(savedSongPath))
 				return;
@@ -56,17 +56,15 @@ namespace MusicPlayer.Helpers
 				
 				dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
 				{
-					player.Play();
+					if (autoPlay)
+					{
+						player.Play();
+					}
 					
 					dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
 					{
 						player.SetPosition(savedPosition);
 						player.SetCumulativePlayedTime(cumulativePlayedTime);
-						
-						if (!autoPlay)
-						{
-							player.Pause();
-						}
 					}));
 				}));
 			};

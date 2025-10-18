@@ -1,7 +1,8 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using Microsoft.Data.Sqlite;
 using MusicPlayer.Interfaces;
+using MusicPlayer.Models;
 using MusicPlayer.Services.Settings;
 using MusicPlayer.Validation;
 
@@ -9,7 +10,6 @@ namespace MusicPlayer.Services
 {
     public class SqliteSettingsService : ISettingsService
     {
-        // ──────────────── Fields ────────────────
         private readonly string databasePath;
         private readonly object cacheLock = new();
         private readonly Timer saveTimer;
@@ -19,17 +19,19 @@ namespace MusicPlayer.Services
 
         private int fileCount;
         private int lastPlayedIndex;
+        private int? currentPlaylistId;
 
-        private string? currentSongPath;
-        private double currentSongPositionSeconds;
-        private List<string> currentQueue = new List<string>();
+        private readonly Dictionary<int, string> playlistCurrentSongs = [];
+        private readonly Dictionary<int, double> playlistCurrentPositions = [];
+        private List<string> currentQueue = [];
         private bool isQueueShuffled;
 
-        private readonly Dictionary<string, string> songDurations = new Dictionary<string, string>();
-        private readonly Dictionary<string, int> playCounts = new Dictionary<string, int>();
-        private readonly Dictionary<string, double> cumulativePlayedTimes = new Dictionary<string, double>();
+        private readonly Dictionary<string, string> songDurations = [];
+        private readonly Dictionary<string, int> playCounts = [];
+        private readonly Dictionary<string, Dictionary<int, int>> playlistPlayCounts = [];
+        private readonly Dictionary<string, double> cumulativePlayedTimes = [];
 
-        private double volumePercent = 3.0; // 0–100
+        private double volumePercent = 3.0; // 0â€“100
         private float band80Hz;
         private float band240Hz;
         private float band750Hz;
@@ -40,8 +42,11 @@ namespace MusicPlayer.Services
         private bool autoPlayOnStartup;
         private string? discordClientId;
         private string songNameFormat = "SongArtist"; // Default: "Song - Artist"
+        
+        private string defaultQueueName = "Default Queue (All Songs)";
+        private string? defaultQueueGenre;
+        private string? defaultQueueTags;
 
-        // ──────────────── Constructor ────────────────
         public SqliteSettingsService()
         {
             var appDataPath = Path.Combine(
@@ -57,7 +62,6 @@ namespace MusicPlayer.Services
             saveTimer = new Timer(AutoSaveCallback, null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
         }
 
-        // ──────────────── Initialization ────────────────
         private void InitializeDatabase()
         {
             using var connection = new SqliteConnection($"Data Source={databasePath}");
@@ -80,10 +84,35 @@ namespace MusicPlayer.Services
                     PlayCount INTEGER NOT NULL DEFAULT 0
                 );
 
+                CREATE TABLE IF NOT EXISTS PlaylistPlayCounts (
+                    FilePath TEXT NOT NULL,
+                    PlaylistId INTEGER,
+                    PlayCount INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (FilePath, PlaylistId)
+                );
+
                 CREATE TABLE IF NOT EXISTS CumulativePlayedTimes (
                     FilePath TEXT PRIMARY KEY,
                     CumulativeSeconds REAL NOT NULL DEFAULT 0.0
                 );
+
+                CREATE TABLE IF NOT EXISTS Playlists (
+                    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    Name TEXT NOT NULL,
+                    Genre TEXT,
+                    Tags TEXT,
+                    CreatedDate TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS PlaylistSongs (
+                    PlaylistId INTEGER NOT NULL,
+                    SongFilePath TEXT NOT NULL,
+                    Position INTEGER NOT NULL,
+                    FOREIGN KEY (PlaylistId) REFERENCES Playlists(Id) ON DELETE CASCADE,
+                    PRIMARY KEY (PlaylistId, SongFilePath)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_playlist_songs ON PlaylistSongs(PlaylistId);
 
                 CREATE TABLE IF NOT EXISTS CurrentQueue (
                     Position INTEGER PRIMARY KEY,
@@ -104,10 +133,15 @@ namespace MusicPlayer.Services
 
                 INSERT OR IGNORE INTO EqualizerSettings (Id, Band80Hz, Band240Hz, Band750Hz, Band2200Hz, Band6600Hz) 
                 VALUES (1, 0.0, 0.0, 0.0, 0.0, 0.0);
+
+                CREATE TABLE IF NOT EXISTS PlaylistPlaybackState (
+                    PlaylistId INTEGER PRIMARY KEY,
+                    CurrentSongPath TEXT,
+                    CurrentPosition REAL NOT NULL DEFAULT 0.0
+                );
                 """;
             command.ExecuteNonQuery();
 
-            // Backwards-compatibility: ensure IsCompleted exists on CurrentQueue
             var checkColumnCmd = connection.CreateCommand();
             checkColumnCmd.CommandText = "PRAGMA table_info(CurrentQueue)";
             using var reader = checkColumnCmd.ExecuteReader();
@@ -122,7 +156,7 @@ namespace MusicPlayer.Services
                 }
             }
             reader.Close();
-
+            
             if (!hasIsCompletedColumn)
             {
                 var alterCmd = connection.CreateCommand();
@@ -140,14 +174,15 @@ namespace MusicPlayer.Services
 
                 fileCount = GetIntSetting(connection, "FileCount", 0);
                 lastPlayedIndex = GetIntSetting(connection, "LastPlayedIndex", 0);
-                currentSongPath = GetStringSetting(connection, "CurrentSongPath", null);
-                currentSongPositionSeconds = GetDoubleSetting(connection, "CurrentSongPositionSeconds", 0);
+                currentPlaylistId = GetNullableIntSetting(connection, "CurrentPlaylistId");
                 isQueueShuffled = GetBoolSetting(connection, "IsQueueShuffled", false);
                 volumePercent = GetDoubleSetting(connection, "VolumePercent", 3.0);
 
                 LoadDurations(connection);
                 LoadPlayCounts(connection);
+                LoadPlaylistPlayCounts(connection);
                 LoadCumulativeTimes(connection);
+                LoadPlaylistPlaybackStates(connection);
                 LoadQueue(connection);
                 LoadEqualizer(connection);
 
@@ -155,13 +190,17 @@ namespace MusicPlayer.Services
                 autoPlayOnStartup = GetBoolSetting(connection, SettingsKeys.AutoPlayOnStartup, false);
                 discordClientId = GetStringSetting(connection, SettingsKeys.DiscordClientId, null);
                 songNameFormat = GetStringSetting(connection, SettingsKeys.SongNameFormat, "SongArtist") ?? "SongArtist";
+                
+                defaultQueueName = GetStringSetting(connection, "DefaultQueueName", "Default Queue (All Songs)") ?? "Default Queue (All Songs)";
+                defaultQueueGenre = GetStringSetting(connection, "DefaultQueueGenre", null);
+                defaultQueueTags = GetStringSetting(connection, "DefaultQueueTags", null);
             }
         }
 
         #region Load Helpers
         private void LoadDurations(SqliteConnection connection)
         {
-            songDurations.Clear();
+                songDurations.Clear();
             using var cmd = connection.CreateCommand();
             cmd.CommandText = "SELECT FilePath, Duration FROM SongDurations";
             using var reader = cmd.ExecuteReader();
@@ -173,13 +212,33 @@ namespace MusicPlayer.Services
 
         private void LoadPlayCounts(SqliteConnection connection)
         {
-            playCounts.Clear();
+                playCounts.Clear();
             using var cmd = connection.CreateCommand();
             cmd.CommandText = "SELECT FilePath, PlayCount FROM PlayCounts";
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
                 playCounts[reader.GetString(0)] = reader.GetInt32(1);
+            }
+        }
+
+        private void LoadPlaylistPlayCounts(SqliteConnection connection)
+        {
+            playlistPlayCounts.Clear();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT FilePath, PlaylistId, PlayCount FROM PlaylistPlayCounts";
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                string filePath = reader.GetString(0);
+                int playlistId = reader.IsDBNull(1) ? -1 : reader.GetInt32(1);
+                int playCount = reader.GetInt32(2);
+
+                if (!playlistPlayCounts.ContainsKey(filePath))
+                {
+                    playlistPlayCounts[filePath] = [];
+                }
+                playlistPlayCounts[filePath][playlistId] = playCount;
             }
         }
 
@@ -195,9 +254,30 @@ namespace MusicPlayer.Services
             }
         }
 
+        private void LoadPlaylistPlaybackStates(SqliteConnection connection)
+        {
+            playlistCurrentSongs.Clear();
+            playlistCurrentPositions.Clear();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT PlaylistId, CurrentSongPath, CurrentPosition FROM PlaylistPlaybackState";
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                int playlistId = reader.GetInt32(0);
+                string? songPath = reader.IsDBNull(1) ? null : reader.GetString(1);
+                double position = reader.GetDouble(2);
+
+                if (songPath != null)
+                {
+                    playlistCurrentSongs[playlistId] = songPath;
+                    playlistCurrentPositions[playlistId] = position;
+                }
+            }
+        }
+
         private void LoadQueue(SqliteConnection connection)
         {
-            currentQueue.Clear();
+                currentQueue.Clear();
             using var cmd = connection.CreateCommand();
             cmd.CommandText = "SELECT FilePath, IsCompleted FROM CurrentQueue ORDER BY Position";
             using var reader = cmd.ExecuteReader();
@@ -206,8 +286,8 @@ namespace MusicPlayer.Services
                 var filePath = reader.GetString(0);
                 var isCompleted = reader.GetInt32(1) == 1;
 
-                currentQueue.Add($"{filePath}|{isCompleted}");
-            }
+                    currentQueue.Add($"{filePath}|{isCompleted}");
+                }
         }
 
         private void LoadEqualizer(SqliteConnection connection)
@@ -226,7 +306,6 @@ namespace MusicPlayer.Services
         }
         #endregion
 
-        // ──────────────── Auto Save ────────────────
         private void AutoSaveCallback(object? state)
         {
             if (isDirty)
@@ -241,7 +320,6 @@ namespace MusicPlayer.Services
             SaveAllSettingsToDatabase();
         }
 
-        // ──────────────── Settings CRUD Helpers ────────────────
         private static int GetIntSetting(SqliteConnection connection, string key, int defaultValue)
         {
             using var command = connection.CreateCommand();
@@ -249,6 +327,19 @@ namespace MusicPlayer.Services
             command.Parameters.AddWithValue("@key", key);
             var result = command.ExecuteScalar();
             return result != null && int.TryParse(result.ToString(), out var value) ? value : defaultValue;
+        }
+
+        private static int? GetNullableIntSetting(SqliteConnection connection, string key)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT Value FROM Settings WHERE Key = @key";
+            command.Parameters.AddWithValue("@key", key);
+            var result = command.ExecuteScalar();
+            if (result != null && int.TryParse(result.ToString(), out var value))
+            {
+                return value;
+            }
+            return null;
         }
 
         private static double GetDoubleSetting(SqliteConnection connection, string key, double defaultValue)
@@ -287,7 +378,6 @@ namespace MusicPlayer.Services
             command.ExecuteNonQuery();
         }
 
-        // ──────────────── Save All Settings ────────────────
         private void SaveAllSettingsToDatabase()
         {
             lock (cacheLock)
@@ -301,24 +391,25 @@ namespace MusicPlayer.Services
 
                     using var transaction = connection.BeginTransaction();
 
-                    // Basic settings
                     SetSetting(connection, "FileCount", fileCount.ToString());
                     SetSetting(connection, "LastPlayedIndex", lastPlayedIndex.ToString());
-                    SetSetting(connection, "CurrentSongPath", currentSongPath ?? string.Empty);
-                    SetSetting(connection, "CurrentSongPositionSeconds", currentSongPositionSeconds.ToString(CultureInfo.InvariantCulture));
+                    SetSetting(connection, "CurrentPlaylistId", currentPlaylistId?.ToString() ?? "-1");
                     SetSetting(connection, "IsQueueShuffled", isQueueShuffled.ToString());
                     SetSetting(connection, "VolumePercent", volumePercent.ToString(CultureInfo.InvariantCulture));
-
+                    
                     SetSetting(connection, SettingsKeys.MusicFolderPath, musicFolderPath);
                     SetSetting(connection, SettingsKeys.AutoPlayOnStartup, autoPlayOnStartup.ToString());
                     SetSetting(connection, SettingsKeys.DiscordClientId, discordClientId ?? string.Empty);
                     SetSetting(connection, SettingsKeys.SongNameFormat, songNameFormat);
+                    
+                    SetSetting(connection, "DefaultQueueName", defaultQueueName);
+                    SetSetting(connection, "DefaultQueueGenre", defaultQueueGenre ?? string.Empty);
+                    SetSetting(connection, "DefaultQueueTags", defaultQueueTags ?? string.Empty);
 
-                    // Durations
                     using (var deleteDurationsCmd = connection.CreateCommand())
                     {
-                        deleteDurationsCmd.CommandText = "DELETE FROM SongDurations";
-                        deleteDurationsCmd.ExecuteNonQuery();
+                    deleteDurationsCmd.CommandText = "DELETE FROM SongDurations";
+                    deleteDurationsCmd.ExecuteNonQuery();
                     }
 
                     foreach (var kvp in songDurations)
@@ -330,11 +421,10 @@ namespace MusicPlayer.Services
                         insertDurationCmd.ExecuteNonQuery();
                     }
 
-                    // Play counts
                     using (var deleteCountsCmd = connection.CreateCommand())
                     {
-                        deleteCountsCmd.CommandText = "DELETE FROM PlayCounts";
-                        deleteCountsCmd.ExecuteNonQuery();
+                    deleteCountsCmd.CommandText = "DELETE FROM PlayCounts";
+                    deleteCountsCmd.ExecuteNonQuery();
                     }
 
                     foreach (var kvp in playCounts)
@@ -346,7 +436,32 @@ namespace MusicPlayer.Services
                         insertCountCmd.ExecuteNonQuery();
                     }
 
-                    // Cumulative times
+                    using (var deletePlaylistCountsCmd = connection.CreateCommand())
+                    {
+                        deletePlaylistCountsCmd.CommandText = "DELETE FROM PlaylistPlayCounts";
+                        deletePlaylistCountsCmd.ExecuteNonQuery();
+                    }
+
+                    foreach (var fileEntry in playlistPlayCounts)
+                    {
+                        foreach (var playlistEntry in fileEntry.Value)
+                        {
+                            using var insertPlaylistCountCmd = connection.CreateCommand();
+                            insertPlaylistCountCmd.CommandText = "INSERT INTO PlaylistPlayCounts (FilePath, PlaylistId, PlayCount) VALUES (@path, @playlistId, @count)";
+                            insertPlaylistCountCmd.Parameters.AddWithValue("@path", fileEntry.Key);
+                            if (playlistEntry.Key == -1)
+                            {
+                                insertPlaylistCountCmd.Parameters.AddWithValue("@playlistId", DBNull.Value);
+                            }
+                            else
+                            {
+                                insertPlaylistCountCmd.Parameters.AddWithValue("@playlistId", playlistEntry.Key);
+                            }
+                            insertPlaylistCountCmd.Parameters.AddWithValue("@count", playlistEntry.Value);
+                            insertPlaylistCountCmd.ExecuteNonQuery();
+                        }
+                    }
+
                     using (var deleteCumulativeCmd = connection.CreateCommand())
                     {
                         deleteCumulativeCmd.CommandText = "DELETE FROM CumulativePlayedTimes";
@@ -362,11 +477,30 @@ namespace MusicPlayer.Services
                         insertCumulativeCmd.ExecuteNonQuery();
                     }
 
-                    // Current queue
+                    using (var deletePlaylistStatesCmd = connection.CreateCommand())
+                    {
+                        deletePlaylistStatesCmd.CommandText = "DELETE FROM PlaylistPlaybackState";
+                        deletePlaylistStatesCmd.ExecuteNonQuery();
+                    }
+
+                    foreach (var playlistId in playlistCurrentSongs.Keys)
+                    {
+                        if (playlistCurrentSongs.TryGetValue(playlistId, out var songPath) &&
+                            playlistCurrentPositions.TryGetValue(playlistId, out var position))
+                        {
+                            using var insertStateCmd = connection.CreateCommand();
+                            insertStateCmd.CommandText = "INSERT INTO PlaylistPlaybackState (PlaylistId, CurrentSongPath, CurrentPosition) VALUES (@playlistId, @songPath, @position)";
+                            insertStateCmd.Parameters.AddWithValue("@playlistId", playlistId);
+                            insertStateCmd.Parameters.AddWithValue("@songPath", songPath);
+                            insertStateCmd.Parameters.AddWithValue("@position", position);
+                            insertStateCmd.ExecuteNonQuery();
+                        }
+                    }
+
                     using (var deleteQueueCmd = connection.CreateCommand())
                     {
-                        deleteQueueCmd.CommandText = "DELETE FROM CurrentQueue";
-                        deleteQueueCmd.ExecuteNonQuery();
+                    deleteQueueCmd.CommandText = "DELETE FROM CurrentQueue";
+                    deleteQueueCmd.ExecuteNonQuery();
                     }
 
                     for (int i = 0; i < currentQueue.Count; i++)
@@ -374,16 +508,15 @@ namespace MusicPlayer.Services
                         var parts = currentQueue[i].Split('|');
                         var filePath = parts[0];
                         var isCompleted = parts.Length > 1 && bool.Parse(parts[1]);
-
+                        
                         using var insertQueueCmd = connection.CreateCommand();
                         insertQueueCmd.CommandText = "INSERT INTO CurrentQueue (Position, FilePath, IsCompleted) VALUES (@position, @path, @completed)";
                         insertQueueCmd.Parameters.AddWithValue("@position", i);
                         insertQueueCmd.Parameters.AddWithValue("@path", filePath);
                         insertQueueCmd.Parameters.AddWithValue("@completed", isCompleted ? 1 : 0);
-                        insertQueueCmd.ExecuteNonQuery();
+                    insertQueueCmd.ExecuteNonQuery();
                     }
 
-                    // Equalizer
                     using var updateEqCmd = connection.CreateCommand();
                     updateEqCmd.CommandText = "UPDATE EqualizerSettings SET Band80Hz = @b80, Band240Hz = @b240, Band750Hz = @b750, Band2200Hz = @b2200, Band6600Hz = @b6600 WHERE Id = 1";
                     updateEqCmd.Parameters.AddWithValue("@b80", band80Hz);
@@ -402,8 +535,7 @@ namespace MusicPlayer.Services
                 }
             }
         }
-
-        // ──────────────── IDisposable ────────────────
+        
         public void Dispose()
         {
             if (disposed) return;
@@ -415,24 +547,41 @@ namespace MusicPlayer.Services
             disposed = true;
         }
 
-        // ──────────────── ISettingsService Implementation ────────────────
 
-        // Playback State
-        public void SaveCurrentPlaybackState(string? songPath, double positionSeconds)
+        public void SaveCurrentPlaybackState(string? songPath, double positionSeconds, int? playlistId)
         {
             lock (cacheLock)
             {
-                currentSongPath = songPath;
-                currentSongPositionSeconds = positionSeconds;
+                int key = playlistId ?? -1;
+                
+                if (songPath != null)
+                {
+                    playlistCurrentSongs[key] = songPath;
+                    playlistCurrentPositions[key] = positionSeconds;
+                }
+                else
+                {
+                    playlistCurrentSongs.Remove(key);
+                    playlistCurrentPositions.Remove(key);
+                }
+                
                 isDirty = true;
             }
         }
 
-        public (string? songPath, double positionSeconds) GetCurrentPlaybackState()
+        public (string? songPath, double positionSeconds) GetCurrentPlaybackState(int? playlistId)
         {
             lock (cacheLock)
             {
-                return (currentSongPath, currentSongPositionSeconds);
+                int key = playlistId ?? -1;
+                
+                if (playlistCurrentSongs.TryGetValue(key, out var songPath) &&
+                    playlistCurrentPositions.TryGetValue(key, out var position))
+                {
+                    return (songPath, position);
+                }
+                
+                return (null, 0);
             }
         }
 
@@ -448,10 +597,9 @@ namespace MusicPlayer.Services
                     changed = true;
                 }
 
-                // original behavior: currentQueue stored "filePath|isCompleted"
                 if (!currentQueue.SequenceEqual(queuePaths))
                 {
-                    currentQueue = new List<string>(queuePaths);
+                    currentQueue = [.. queuePaths];
                     changed = true;
                 }
 
@@ -466,7 +614,6 @@ namespace MusicPlayer.Services
         {
             lock (cacheLock)
             {
-                // return a shallow copy to avoid caller mutating internal list
                 return ([..currentQueue], isQueueShuffled);
             }
         }
@@ -501,7 +648,26 @@ namespace MusicPlayer.Services
             }
         }
 
-        // Song Data
+        public void SaveCurrentPlaylistId(int? playlistId)
+        {
+            lock (cacheLock)
+            {
+                if (currentPlaylistId != playlistId)
+                {
+                    currentPlaylistId = playlistId;
+                    isDirty = true;
+                }
+            }
+        }
+
+        public int? GetCurrentPlaylistId()
+        {
+            lock (cacheLock)
+            {
+                return currentPlaylistId;
+            }
+        }
+
         public void SaveAllDurations(Dictionary<string, string> durations)
         {
             lock (cacheLock)
@@ -538,11 +704,51 @@ namespace MusicPlayer.Services
             }
         }
 
+        public void IncrementPlayCountForPlaylist(string filePath, int? playlistId)
+        {
+            lock (cacheLock)
+            {
+                IncrementPlayCount(filePath);
+
+                int key = playlistId ?? -1;
+
+                if (!playlistPlayCounts.ContainsKey(filePath))
+                {
+                    playlistPlayCounts[filePath] = [];
+                }
+
+                if (!playlistPlayCounts[filePath].TryAdd(key, 1))
+                {
+                    playlistPlayCounts[filePath][key]++;
+                }
+
+                isDirty = true;
+            }
+        }
+
         public Dictionary<string, int> GetAllPlayCounts()
         {
             lock (cacheLock)
             {
                 return new Dictionary<string, int>(playCounts);
+            }
+        }
+
+        public Dictionary<string, int> GetPlayCountsForPlaylist(int? playlistId)
+        {
+            lock (cacheLock)
+            {
+                int key = playlistId ?? -1;
+                
+                Dictionary<string, int> result = [];
+                foreach (var fileEntry in playlistPlayCounts)
+                {
+                    if (fileEntry.Value.TryGetValue(key, out var count))
+                    {
+                        result[fileEntry.Key] = count;
+                    }
+                }
+                return result;
             }
         }
 
@@ -579,7 +785,24 @@ namespace MusicPlayer.Services
             }
         }
 
-        // Audio Settings
+        public int GetTotalPlayCountForPlaylist(int? playlistId)
+        {
+            lock (cacheLock)
+            {
+                int key = playlistId ?? -1;
+                
+                int total = 0;
+                foreach (var fileEntry in playlistPlayCounts.Values)
+                {
+                    if (fileEntry.TryGetValue(key, out var count))
+                    {
+                        total += count;
+                    }
+                }
+                return total;
+            }
+        }
+
         public double GetVolumePercent()
         {
             lock (cacheLock)
@@ -597,8 +820,8 @@ namespace MusicPlayer.Services
                 {
                     volumePercent = clamped;
                     isDirty = true;
-                }
             }
+        }
         }
 
         public (float band80, float band240, float band750, float band2200, float band6600) GetEqualizerSettings()
@@ -614,37 +837,37 @@ namespace MusicPlayer.Services
             lock (cacheLock)
             {
                 bool changed = false;
-
+                
                 if (Math.Abs(band80Hz - band80) > 0.01f)
                 {
                     band80Hz = band80;
                     changed = true;
                 }
-
+                
                 if (Math.Abs(band240Hz - band240) > 0.01f)
                 {
                     band240Hz = band240;
                     changed = true;
                 }
-
+                
                 if (Math.Abs(band750Hz - band750) > 0.01f)
                 {
                     band750Hz = band750;
                     changed = true;
                 }
-
+                
                 if (Math.Abs(band2200Hz - band2200) > 0.01f)
                 {
                     band2200Hz = band2200;
                     changed = true;
                 }
-
+                
                 if (Math.Abs(band6600Hz - band6600) > 0.01f)
                 {
                     band6600Hz = band6600;
                     changed = true;
                 }
-
+                
                 if (changed)
                 {
                     isDirty = true;
@@ -652,7 +875,6 @@ namespace MusicPlayer.Services
             }
         }
 
-        // App Settings
         public string GetMusicFolderPath()
         {
             lock (cacheLock)
@@ -698,6 +920,7 @@ namespace MusicPlayer.Services
             lock (cacheLock)
             {
                 playCounts.Clear();
+                playlistPlayCounts.Clear();
                 cumulativePlayedTimes.Clear();
                 isDirty = true;
 
@@ -705,7 +928,7 @@ namespace MusicPlayer.Services
                 connection.Open();
 
                 using var command = connection.CreateCommand();
-                command.CommandText = "DELETE FROM PlayCounts; DELETE FROM CumulativePlayedTimes;";
+                command.CommandText = "DELETE FROM PlayCounts; DELETE FROM PlaylistPlayCounts; DELETE FROM CumulativePlayedTimes;";
                 command.ExecuteNonQuery();
             }
         }
@@ -716,12 +939,13 @@ namespace MusicPlayer.Services
             {
                 fileCount = 0;
                 lastPlayedIndex = -1;
-                currentSongPath = null;
-                currentSongPositionSeconds = 0;
+                playlistCurrentSongs.Clear();
+                playlistCurrentPositions.Clear();
                 currentQueue.Clear();
                 isQueueShuffled = false;
                 songDurations.Clear();
                 playCounts.Clear();
+                playlistPlayCounts.Clear();
                 cumulativePlayedTimes.Clear();
                 volumePercent = 50.0;
                 band80Hz = 0;
@@ -730,7 +954,7 @@ namespace MusicPlayer.Services
                 band2200Hz = 0;
                 band6600Hz = 0;
                 autoPlayOnStartup = false;
-
+                
                 isDirty = false;
 
                 using var connection = new SqliteConnection($"Data Source={databasePath}");
@@ -748,7 +972,7 @@ namespace MusicPlayer.Services
                 command.ExecuteNonQuery();
 
                 InitializeDatabase();
-
+                
                 if (StringValidator.HasValue(musicFolderPath))
                 {
                     SaveMusicFolderPath(musicFolderPath);
@@ -758,7 +982,7 @@ namespace MusicPlayer.Services
         }
 
         public string GetDatabaseFilePath() => databasePath;
-        
+
         public string? GetDiscordClientId()
         {
             lock (cacheLock)
@@ -785,6 +1009,197 @@ namespace MusicPlayer.Services
             {
                 return songNameFormat;
             }
+        }
+
+        public int CreatePlaylist(string name, string? genre, string? tags, List<string> songFilePaths)
+        {
+            using var connection = new SqliteConnection($"Data Source={databasePath}");
+            connection.Open();
+
+            using var transaction = connection.BeginTransaction();
+
+            using var insertCmd = connection.CreateCommand();
+            insertCmd.CommandText = @"
+                INSERT INTO Playlists (Name, Genre, Tags, CreatedDate) 
+                VALUES (@name, @genre, @tags, @date);
+                SELECT last_insert_rowid();";
+            insertCmd.Parameters.AddWithValue("@name", name);
+            insertCmd.Parameters.AddWithValue("@genre", genre ?? string.Empty);
+            insertCmd.Parameters.AddWithValue("@tags", tags ?? string.Empty);
+            insertCmd.Parameters.AddWithValue("@date", DateTime.Now.ToString("o"));
+
+            var playlistId = Convert.ToInt32(insertCmd.ExecuteScalar());
+
+            for (int i = 0; i < songFilePaths.Count; i++)
+            {
+                using var songCmd = connection.CreateCommand();
+                songCmd.CommandText = @"
+                    INSERT INTO PlaylistSongs (PlaylistId, SongFilePath, Position) 
+                    VALUES (@playlistId, @filePath, @position)";
+                songCmd.Parameters.AddWithValue("@playlistId", playlistId);
+                songCmd.Parameters.AddWithValue("@filePath", songFilePaths[i]);
+                songCmd.Parameters.AddWithValue("@position", i);
+                songCmd.ExecuteNonQuery();
+            }
+
+            transaction.Commit();
+            return playlistId;
+        }
+
+        public List<Playlist> GetAllPlaylists()
+        {
+            List<Playlist> playlists = [];
+
+            using var connection = new SqliteConnection($"Data Source={databasePath}");
+            connection.Open();
+
+            using var playlistCmd = connection.CreateCommand();
+            playlistCmd.CommandText = "SELECT Id, Name, Genre, Tags, CreatedDate FROM Playlists ORDER BY CreatedDate DESC";
+            using var reader = playlistCmd.ExecuteReader();
+
+            while (reader.Read())
+            {
+                var playlist = new Playlist
+                {
+                    Id = reader.GetInt32(0),
+                    Name = reader.GetString(1),
+                    Genre = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    Tags = reader.IsDBNull(3) ? null : reader.GetString(3),
+                    CreatedDate = DateTime.Parse(reader.GetString(4))
+                };
+
+                playlists.Add(playlist);
+            }
+
+            foreach (var playlist in playlists)
+            {
+                using var songCmd = connection.CreateCommand();
+                songCmd.CommandText = "SELECT SongFilePath FROM PlaylistSongs WHERE PlaylistId = @id ORDER BY Position";
+                songCmd.Parameters.AddWithValue("@id", playlist.Id);
+                using var songReader = songCmd.ExecuteReader();
+
+                while (songReader.Read())
+                {
+                    playlist.SongFilePaths.Add(songReader.GetString(0));
+                }
+            }
+
+            return playlists;
+        }
+
+        public Playlist? GetPlaylistById(int id)
+        {
+            // Special handling for default queue
+            if (id == -1)
+            {
+                lock (cacheLock)
+                {
+                    return new Playlist
+                    {
+                        Id = -1,
+                        Name = defaultQueueName,
+                        Genre = defaultQueueGenre,
+                        Tags = defaultQueueTags,
+                        CreatedDate = DateTime.Now,
+                        SongFilePaths = new List<string>()
+                    };
+                }
+            }
+            
+            using var connection = new SqliteConnection($"Data Source={databasePath}");
+            connection.Open();
+
+            using var playlistCmd = connection.CreateCommand();
+            playlistCmd.CommandText = "SELECT Id, Name, Genre, Tags, CreatedDate FROM Playlists WHERE Id = @id";
+            playlistCmd.Parameters.AddWithValue("@id", id);
+            using var reader = playlistCmd.ExecuteReader();
+
+            if (!reader.Read())
+                return null;
+
+            var playlist = new Playlist
+            {
+                Id = reader.GetInt32(0),
+                Name = reader.GetString(1),
+                Genre = reader.IsDBNull(2) ? null : reader.GetString(2),
+                Tags = reader.IsDBNull(3) ? null : reader.GetString(3),
+                CreatedDate = DateTime.Parse(reader.GetString(4))
+            };
+
+            using var songCmd = connection.CreateCommand();
+            songCmd.CommandText = "SELECT SongFilePath FROM PlaylistSongs WHERE PlaylistId = @id ORDER BY Position";
+            songCmd.Parameters.AddWithValue("@id", id);
+            using var songReader = songCmd.ExecuteReader();
+
+            while (songReader.Read())
+            {
+                playlist.SongFilePaths.Add(songReader.GetString(0));
+            }
+
+            return playlist;
+        }
+
+        public void UpdatePlaylist(int id, string name, string? genre, string? tags, List<string> songFilePaths)
+        {
+            // Special handling for default queue
+            if (id == -1)
+            {
+                lock (cacheLock)
+                {
+                    defaultQueueName = name;
+                    defaultQueueGenre = genre;
+                    defaultQueueTags = tags;
+                    isDirty = true;
+                }
+                return;
+            }
+            
+            using var connection = new SqliteConnection($"Data Source={databasePath}");
+            connection.Open();
+
+            using var transaction = connection.BeginTransaction();
+
+            using var updateCmd = connection.CreateCommand();
+            updateCmd.CommandText = @"
+                UPDATE Playlists 
+                SET Name = @name, Genre = @genre, Tags = @tags 
+                WHERE Id = @id";
+            updateCmd.Parameters.AddWithValue("@id", id);
+            updateCmd.Parameters.AddWithValue("@name", name);
+            updateCmd.Parameters.AddWithValue("@genre", genre ?? string.Empty);
+            updateCmd.Parameters.AddWithValue("@tags", tags ?? string.Empty);
+            updateCmd.ExecuteNonQuery();
+
+            using var deleteCmd = connection.CreateCommand();
+            deleteCmd.CommandText = "DELETE FROM PlaylistSongs WHERE PlaylistId = @id";
+            deleteCmd.Parameters.AddWithValue("@id", id);
+            deleteCmd.ExecuteNonQuery();
+
+            for (int i = 0; i < songFilePaths.Count; i++)
+            {
+                using var songCmd = connection.CreateCommand();
+                songCmd.CommandText = @"
+                    INSERT INTO PlaylistSongs (PlaylistId, SongFilePath, Position) 
+                    VALUES (@playlistId, @filePath, @position)";
+                songCmd.Parameters.AddWithValue("@playlistId", id);
+                songCmd.Parameters.AddWithValue("@filePath", songFilePaths[i]);
+                songCmd.Parameters.AddWithValue("@position", i);
+                songCmd.ExecuteNonQuery();
+            }
+
+            transaction.Commit();
+        }
+
+        public void DeletePlaylist(int id)
+        {
+            using var connection = new SqliteConnection($"Data Source={databasePath}");
+            connection.Open();
+
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "DELETE FROM Playlists WHERE Id = @id";
+            cmd.Parameters.AddWithValue("@id", id);
+            cmd.ExecuteNonQuery();
+            
         }
     }
 }

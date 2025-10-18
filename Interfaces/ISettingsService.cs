@@ -1,10 +1,11 @@
+﻿using MusicPlayer.Models;
+
 namespace MusicPlayer.Interfaces
 {
     public interface ISettingsService : IDisposable
     {
-        // ──────────────── Playback State ────────────────
-        void SaveCurrentPlaybackState(string? songPath, double positionSeconds);
-        (string? songPath, double positionSeconds) GetCurrentPlaybackState();
+        void SaveCurrentPlaybackState(string? songPath, double positionSeconds, int? playlistId);
+        (string? songPath, double positionSeconds) GetCurrentPlaybackState(int? playlistId);
 
         void SaveCurrentQueue(List<string> queuePaths, bool isShuffled);
         (List<string> queuePaths, bool isShuffled) GetCurrentQueue();
@@ -12,26 +13,30 @@ namespace MusicPlayer.Interfaces
         void UpdateLastPlayedIndex(int index);
         int GetLastPlayedIndex();
 
+        void SaveCurrentPlaylistId(int? playlistId);
+        int? GetCurrentPlaylistId();
+
         void UpdateFileCount(int count);
         int GetDatabaseSongCount();
 
         void FlushToDisk();
 
 
-        // ──────────────── Song Data ────────────────
         void SaveAllDurations(Dictionary<string, string> durations);
         Dictionary<string, string> GetAllDurations();
 
         void IncrementPlayCount(string filePath);
+        void IncrementPlayCountForPlaylist(string filePath, int? playlistId);
         Dictionary<string, int> GetAllPlayCounts();
+        Dictionary<string, int> GetPlayCountsForPlaylist(int? playlistId);
 
         void SaveCumulativePlayedTime(string songPath, double cumulativeSeconds);
         double GetCumulativePlayedTime(string songPath);
 
         int GetTotalPlayCount();
+        int GetTotalPlayCountForPlaylist(int? playlistId);
 
 
-        // ──────────────── Audio Settings ────────────────
         double GetVolumePercent();
         void SaveVolumePercent(double percent);
 
@@ -39,7 +44,6 @@ namespace MusicPlayer.Interfaces
         void SaveEqualizerSettings(float band80, float band240, float band750, float band2200, float band6600);
 
 
-        // ──────────────── App Settings ────────────────
         string GetMusicFolderPath();
         void SaveMusicFolderPath(string path);
 
@@ -51,12 +55,17 @@ namespace MusicPlayer.Interfaces
         string GetDatabaseFilePath();
 
 
-        // ──────────────── Discord RPC ────────────────
         string? GetDiscordClientId();
         void SaveDiscordClientId(string? clientId);
 
 
-        // ──────────────── Display / Naming ────────────────
         string GetSongNameFormat();
+
+
+        int CreatePlaylist(string name, string? genre, string? tags, List<string> songFilePaths);
+        List<Playlist> GetAllPlaylists();
+        Playlist? GetPlaylistById(int id);
+        void UpdatePlaylist(int id, string name, string? genre, string? tags, List<string> songFilePaths);
+        void DeletePlaylist(int id);
     }
 }

@@ -9,9 +9,10 @@
         xmlns:equalizer="clr-namespace:MusicPlayer.Views.Equalizer"
         xmlns:statistics="clr-namespace:MusicPlayer.Views.Statistics"
         xmlns:settings="clr-namespace:MusicPlayer.Views.Settings"
+        xmlns:playlists="clr-namespace:MusicPlayer.Views.Playlists"
         mc:Ignorable="d"
         Title="Music Player" Height="600" Width="900"
-        MinHeight="540" MinWidth="800"
+        MinHeight="600" MinWidth="900"
         Icon="Assets/icon.ico"
         Background="#202020"
         WindowStyle="None"
@@ -38,7 +39,8 @@
         <customTitleBar:CustomTitleBar Grid.Row="0"/>
         
         <!-- Main Content Area with Tabs -->
-        <TabControl Grid.Row="1" 
+        <TabControl x:Name="MainTabControl"
+                    Grid.Row="1" 
                     Margin="20"
                     Background="Transparent"
                     BorderThickness="0">
@@ -87,16 +89,40 @@
                 </TabItem.Header>
                 <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     
+                    <!-- Playlist Selector -->
+                    <!-- Playlist Dropdown -->
+                    <ComboBox Grid.Row="0" x:Name="PlaylistDropdown"
+                             SelectionChanged="PlaylistDropdown_SelectionChanged"
+                             Style="{StaticResource CustomComboBoxStyle}"
+                             Margin="0,0,0,5">
+                        <ComboBoxItem Content="Default Queue" IsSelected="True"/>
+                    </ComboBox>
+                    
                     <!-- Playlist Area -->
-                    <playlist:PlaylistView Grid.Row="0" x:Name="PlaylistView" Margin="0,0,0,10"/>
+                    <playlist:PlaylistView Grid.Row="1" x:Name="PlaylistView"/>
                     
                     <!-- Player Controls -->
-                    <player:PlayerControlsView Grid.Row="1" x:Name="PlayerControlsView"/>
+                    <player:PlayerControlsView Grid.Row="2" x:Name="PlayerControlsView"/>
                 </Grid>
+            </TabItem>
+
+            <!-- Playlists Tab -->
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="&#xE90B;" FontFamily="Segoe MDL2 Assets" FontSize="22" Margin="0,0,15,0"/>
+                        <TextBlock Text="Playlists" 
+                                   Foreground="{StaticResource TextBrush}" 
+                                   FontSize="14"
+                                   FontWeight="SemiBold"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <playlists:PlaylistsView x:Name="PlaylistsView" Margin="0,10,0,0"/>
             </TabItem>
 
             <!-- Equalizer Tab -->
