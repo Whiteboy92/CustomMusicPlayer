@@ -47,6 +47,30 @@ namespace MusicPlayer.Windows.CreatePlaylistWindow
             
             LoadAllSongs();
             SongsItemsControl.ItemsSource = filteredSongs;
+            
+            UpdateCharacterCounters();
+        }
+
+        private void UpdateCharacterCounters()
+        {
+            TxtPlaylistNameCounter.Text = $"{TxtPlaylistName.Text.Length}/64";
+            TxtGenreCounter.Text = $"{TxtGenre.Text.Length}/64";
+            TxtTagsCounter.Text = $"{TxtTags.Text.Length}/200";
+        }
+
+        private void TxtPlaylistName_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            TxtPlaylistNameCounter.Text = $"{TxtPlaylistName.Text.Length}/64";
+        }
+
+        private void TxtGenre_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            TxtGenreCounter.Text = $"{TxtGenre.Text.Length}/64";
+        }
+
+        private void TxtTags_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            TxtTagsCounter.Text = $"{TxtTags.Text.Length}/200";
         }
 
         private async void LoadAllSongs()

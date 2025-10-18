@@ -23,8 +23,7 @@
     <Grid>
         <Border Background="{StaticResource BackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="1"
-                CornerRadius="8">
+                BorderThickness="2">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -48,9 +47,19 @@
                       Foreground="{StaticResource TextBrush}"
                       Margin="0,0,0,15"/>
 
-            <TextBlock Text="Playlist Name *" Style="{StaticResource LabelStyle}"/>
+            <Grid Margin="0,0,0,6">
+                <TextBlock Text="Playlist Name *" Style="{StaticResource LabelStyle}" Margin="0"/>
+                <TextBlock x:Name="TxtPlaylistNameCounter"
+                          Text="0/64"
+                          FontSize="11"
+                          Foreground="{StaticResource TextSecondaryBrush}"
+                          HorizontalAlignment="Right"
+                          VerticalAlignment="Center"/>
+            </Grid>
             <TextBox x:Name="TxtPlaylistName" 
                     Style="{StaticResource TextBoxStyle}"
+                    MaxLength="64"
+                    TextChanged="TxtPlaylistName_TextChanged"
                     Margin="0,0,0,15"/>
 
             <Grid>
@@ -61,14 +70,35 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="Genre (Optional)" Style="{StaticResource LabelStyle}"/>
-                    <TextBox x:Name="TxtGenre" Style="{StaticResource TextBoxStyle}"/>
+                    <Grid Margin="0,0,0,6">
+                        <TextBlock Text="Genre (Optional)" Style="{StaticResource LabelStyle}" Margin="0"/>
+                        <TextBlock x:Name="TxtGenreCounter"
+                                  Text="0/64"
+                                  FontSize="11"
+                                  Foreground="{StaticResource TextSecondaryBrush}"
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                    <TextBox x:Name="TxtGenre" 
+                            Style="{StaticResource TextBoxStyle}"
+                            MaxLength="64"
+                            TextChanged="TxtGenre_TextChanged"/>
                 </StackPanel>
 
                 <StackPanel Grid.Column="2">
-                    <TextBlock Text="Tags (Optional)" Style="{StaticResource LabelStyle}"/>
+                    <Grid Margin="0,0,0,6">
+                        <TextBlock Text="Tags (Optional)" Style="{StaticResource LabelStyle}" Margin="0"/>
+                        <TextBlock x:Name="TxtTagsCounter"
+                                  Text="0/200"
+                                  FontSize="11"
+                                  Foreground="{StaticResource TextSecondaryBrush}"
+                                  HorizontalAlignment="Right"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
                     <TextBox x:Name="TxtTags" 
                             Style="{StaticResource TextBoxStyle}"
+                            MaxLength="200"
+                            TextChanged="TxtTags_TextChanged"
                             ToolTip="Comma-separated tags (e.g., workout, chill, party)"/>
                 </StackPanel>
             </Grid>
