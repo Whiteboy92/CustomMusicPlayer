@@ -117,6 +117,13 @@ public partial class MainWindow
             PlaybackStateValidator.HasPlayablePosition(currentSongPosition))
         {
             settings.SaveCurrentPlaybackState(currentSongPath, currentSongPosition);
+
+            if (!string.IsNullOrEmpty(currentSongPath))
+            {
+                var cumulativeTime = PlayerControlsView.GetCumulativePlayedTime();
+                settings.SaveCumulativePlayedTime(currentSongPath, cumulativeTime);
+            }
+            
             settings.FlushToDisk();
         }
     }
@@ -283,8 +290,14 @@ public partial class MainWindow
 
     private void PlaylistView_SongSelected(object? sender, MusicFile musicFile)
     {
+        SaveCurrentSongPlayCountIfNeeded();
+        
         discordPresenceUpdater.SetCurrentSong(musicFile);
         PlayerControlsView.PlaySong(musicFile);
+        
+        var cumulativeTime = settings.GetCumulativePlayedTime(musicFile.FilePath);
+        PlayerControlsView.SetCumulativePlayedTime(cumulativeTime);
+        
         settings.UpdateLastPlayedIndex(PlaylistView.SelectedIndex);
     }
 
@@ -340,6 +353,11 @@ public partial class MainWindow
 
         discordPresenceUpdater.SetCurrentSong(song);
         PlayerControlsView.PlaySong(song);
+        
+        // Restore cumulative time for newly selected song
+        var cumulativeTime = settings.GetCumulativePlayedTime(song.FilePath);
+        PlayerControlsView.SetCumulativePlayedTime(cumulativeTime);
+        
         settings.UpdateLastPlayedIndex(startIndex);
     }
 
@@ -373,6 +391,11 @@ public partial class MainWindow
 
         discordPresenceUpdater.SetCurrentSong(song);
         PlayerControlsView.PlaySong(song);
+        
+        // Restore cumulative time for newly selected song
+        var cumulativeTime = settings.GetCumulativePlayedTime(song.FilePath);
+        PlayerControlsView.SetCumulativePlayedTime(cumulativeTime);
+        
         settings.UpdateLastPlayedIndex(PlaylistView.SelectedIndex);
     }
 
@@ -408,12 +431,24 @@ public partial class MainWindow
         if (PlaybackStateValidator.IsValidIndex(PlaylistView.SelectedIndex, PlaylistView.GetPlaylistCount()))
         {
             var currentSong = PlaylistView.GetSongAtIndex(PlaylistView.SelectedIndex);
-            if (currentSong != null && PlayerControlsView.WasPlayedEnough())
+            if (currentSong != null)
             {
-                currentSong.PlayCount++;
-                settings.IncrementPlayCount(currentSong.FilePath);
+                // Always save cumulative time
+                var cumulativeTime = PlayerControlsView.GetCumulativePlayedTime();
+                settings.SaveCumulativePlayedTime(currentSong.FilePath, cumulativeTime);
+                
+                // Check if played enough to increment play count
+                if (PlayerControlsView.WasPlayedEnough())
+                {
+                    currentSong.PlayCount++;
+                    settings.IncrementPlayCount(currentSong.FilePath);
+                    LoadStatistics();
+                    
+                    // Clear cumulative time after counting as played
+                    settings.SaveCumulativePlayedTime(currentSong.FilePath, 0);
+                }
+                
                 settings.FlushToDisk();
-                LoadStatistics();
             }
         }
     }
@@ -453,7 +488,11 @@ public partial class MainWindow
 
             await Dispatcher.InvokeAsync(() =>
             {
+                discordPresenceUpdater.SetCurrentSong(firstSong);
                 PlayerControlsView.PlaySong(firstSong);
+                
+                var cumulativeTime = settings.GetCumulativePlayedTime(firstSong.FilePath);
+                PlayerControlsView.SetCumulativePlayedTime(cumulativeTime);
             }, DispatcherPriority.ApplicationIdle);
 
             settings.UpdateLastPlayedIndex(0);
@@ -467,7 +506,6 @@ public partial class MainWindow
     
     private void PlayerControlsView_NextRequested(object? sender, EventArgs e)
     {
-        // Only mark as completed if song didn't just finish naturally
         if (!songJustFinished)
         {
             SaveCurrentSongPlayCountIfNeeded();
@@ -479,7 +517,6 @@ public partial class MainWindow
             }
         }
         
-        // Reset the flag for next time
         songJustFinished = false;
         
         if (PlaybackStateValidator.HasPlaylistItems(PlaylistView.GetPlaylistCount()))

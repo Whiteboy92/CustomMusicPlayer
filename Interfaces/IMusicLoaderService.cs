@@ -4,11 +4,13 @@ namespace MusicPlayer.Interfaces
 {
     public interface IMusicLoaderService
     {
-        Task<List<MusicFile>> LoadMusicFromFolderAsync();
-        Task<int> GetMusicFileCountAsync();
+        // ──────────────── Folder Management ────────────────
         bool FolderExists();
         string GetFolderPath();
         void SetFolderPath(string path);
+
+        // ──────────────── Music Loading ────────────────
+        Task<List<MusicFile>> LoadMusicFromFolderAsync();
+        Task<int> GetMusicFileCountAsync();
     }
 }
-

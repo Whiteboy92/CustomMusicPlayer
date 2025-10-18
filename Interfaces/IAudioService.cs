@@ -7,9 +7,6 @@ namespace MusicPlayer.Interfaces
 
         bool IsPlaying { get; }
         bool HasSource { get; }
-        int ChannelCount { get; }
-        int SampleRate { get; }
-        string AudioFormat { get; }
         TimeSpan CurrentTime { get; set; }
         TimeSpan TotalTime { get; }
         float Volume { get; set; }

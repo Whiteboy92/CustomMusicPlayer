@@ -16,5 +16,5 @@ C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\App.xaml
 2211597133985
 MainWindow.xaml;Views\CustomTitleBar\CustomTitleBar.xaml;Views\Equalizer\EqualizerView.xaml;Views\Player\PlayerControlsView.xaml;Views\Playlist\PlaylistView.xaml;Views\Settings\SettingsView.xaml;Views\Statistics\StatisticsView.xaml;
 
-False
+True
 

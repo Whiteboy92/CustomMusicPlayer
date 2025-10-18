@@ -47,6 +47,7 @@ namespace MusicPlayer.Helpers
 			onSongRestored.Invoke(song);
 			
 			bool autoPlay = settings.GetAutoPlayOnStartup();
+			var cumulativePlayedTime = string.IsNullOrEmpty(savedSongPath) ? 0.0 : settings.GetCumulativePlayedTime(savedSongPath);
 			
 			EventHandler? mediaOpenedHandler = null;
 			mediaOpenedHandler = (_, _) =>
@@ -60,6 +61,7 @@ namespace MusicPlayer.Helpers
 					dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
 					{
 						player.SetPosition(savedPosition);
+						player.SetCumulativePlayedTime(cumulativePlayedTime);
 						
 						if (!autoPlay)
 						{
