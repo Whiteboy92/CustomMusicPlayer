@@ -4,11 +4,11 @@ using MusicPlayer.Models;
 
 namespace MusicPlayer.Services;
 
-public class PlaylistManager
+public class PlaylistManagerService
 {
     private readonly ISettingsService settings;
 
-    public PlaylistManager(ISettingsService settingsService)
+    public PlaylistManagerService(ISettingsService settingsService)
     {
         settings = settingsService;
     }

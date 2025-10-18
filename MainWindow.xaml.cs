@@ -17,8 +17,8 @@ public partial class MainWindow
     private readonly IShuffleService shuffleService;
     private readonly IDiscordRpcService discordRpc;
     private readonly DiscordPresenceUpdater discordPresenceUpdater;
-    private readonly PlaybackStatePersistence playbackStatePersistence;
-    private readonly PlaylistManager playlistManager;
+    private readonly PlaybackStatePersistenceService playbackStatePersistenceService;
+    private readonly PlaylistManagerService playlistManagerService;
     private readonly DispatcherTimer? savePositionTimer;
     private readonly DispatcherTimer? memoryPositionTimer;
     private readonly DispatcherTimer? discordUpdateTimer;
@@ -36,8 +36,8 @@ public partial class MainWindow
         IShuffleService shuffleService,
         IDiscordRpcService discordRpcService,
         DiscordPresenceUpdater discordPresenceUpdater,
-        PlaybackStatePersistence playbackStatePersistence,
-        PlaylistManager playlistManager)
+        PlaybackStatePersistenceService playbackStatePersistenceService,
+        PlaylistManagerService playlistManagerService)
     {
         InitializeComponent();
 
@@ -47,8 +47,8 @@ public partial class MainWindow
         this.shuffleService = shuffleService;
         discordRpc = discordRpcService;
         this.discordPresenceUpdater = discordPresenceUpdater;
-        this.playbackStatePersistence = playbackStatePersistence;
-        this.playlistManager = playlistManager;
+        this.playbackStatePersistenceService = playbackStatePersistenceService;
+        this.playlistManagerService = playlistManagerService;
         
         SubscribeToEvents();
         
@@ -123,7 +123,7 @@ public partial class MainWindow
 
     private void SaveCurrentPlaybackState()
     {
-        playbackStatePersistence.SaveCurrentState(currentSongPath, currentSongPosition, currentPlaylistId, PlayerControlsView);
+        playbackStatePersistenceService.SaveCurrentState(currentSongPath, currentSongPosition, currentPlaylistId, PlayerControlsView);
     }
 
     private void SaveCurrentQueue()
@@ -143,7 +143,7 @@ public partial class MainWindow
 
     private void SaveFinalPlaybackState()
     {
-        playbackStatePersistence.SaveFinalState(PlayerControlsView, currentPlaylistId);
+        playbackStatePersistenceService.SaveFinalState(PlayerControlsView, currentPlaylistId);
     }
 
     private void DisposeResources()
@@ -161,7 +161,7 @@ public partial class MainWindow
         PlaylistsView.PlaylistDeleted += PlaylistsView_PlaylistDeleted;
         
         var playlists = settings.GetAllPlaylists();
-        var (defaultQueueName, _, _) = playlistManager.GetDefaultQueueInfo();
+        var (defaultQueueName, _, _) = playlistManagerService.GetDefaultQueueInfo();
         StatisticsView.InitializePlaylistDropdown(playlists, defaultQueueName);
         StatisticsView.PlaylistSelectionChanged += StatisticsView_PlaylistSelectionChanged;
         
@@ -480,7 +480,7 @@ public partial class MainWindow
 
     private void SaveCurrentSongPlayCountIfNeeded()
     {
-        playbackStatePersistence.SaveCurrentSongPlayCount(PlaylistView, PlayerControlsView, currentPlaylistId);
+        playbackStatePersistenceService.SaveCurrentSongPlayCount(PlaylistView, PlayerControlsView, currentPlaylistId);
         
         // Reload statistics if play count was incremented
         if (PlaybackStateValidator.IsValidIndex(PlaylistView.SelectedIndex, PlaylistView.GetPlaylistCount()))
@@ -707,11 +707,11 @@ public partial class MainWindow
     {
         PlaylistDropdown.SelectionChanged -= PlaylistDropdown_SelectionChanged;
         
-        playlistManager.PopulateDropdown(PlaylistDropdown);
+        playlistManagerService.PopulateDropdown(PlaylistDropdown);
         
         if (currentPlaylistId.HasValue)
         {
-            playlistManager.SetDropdownSelection(PlaylistDropdown, currentPlaylistId.Value);
+            playlistManagerService.SetDropdownSelection(PlaylistDropdown, currentPlaylistId.Value);
         }
         else
         {
@@ -767,7 +767,7 @@ public partial class MainWindow
         PopulatePlaylistDropdown();
         
         var playlists = settings.GetAllPlaylists();
-        var (defaultQueueName, _, _) = playlistManager.GetDefaultQueueInfo();
+        var (defaultQueueName, _, _) = playlistManagerService.GetDefaultQueueInfo();
         StatisticsView.InitializePlaylistDropdown(playlists, defaultQueueName);
     }
 
@@ -777,7 +777,7 @@ public partial class MainWindow
         PlaylistsView.LoadPlaylists();
         
         var playlists = settings.GetAllPlaylists();
-        var (defaultQueueName, _, _) = playlistManager.GetDefaultQueueInfo();
+        var (defaultQueueName, _, _) = playlistManagerService.GetDefaultQueueInfo();
         StatisticsView.InitializePlaylistDropdown(playlists, defaultQueueName);
         
         if (currentPlaylistId == editedPlaylistId)
@@ -785,7 +785,7 @@ public partial class MainWindow
             // Special handling for default queue - just update the dropdown name, queue stays the same
             if (editedPlaylistId == -1)
             {
-                playlistManager.SetDropdownSelection(PlaylistDropdown, editedPlaylistId);
+                playlistManagerService.SetDropdownSelection(PlaylistDropdown, editedPlaylistId);
                 return;
             }
             
@@ -805,7 +805,7 @@ public partial class MainWindow
             
             await ReloadEditedPlaylist(editedPlaylistId, songStillInPlaylist);
             
-            playlistManager.SetDropdownSelection(PlaylistDropdown, editedPlaylistId);
+            playlistManagerService.SetDropdownSelection(PlaylistDropdown, editedPlaylistId);
             
             LoadStatistics();
         }
@@ -847,7 +847,7 @@ public partial class MainWindow
         LoadStatistics();
         
         var playlists = settings.GetAllPlaylists();
-        var (defaultQueueName, _, _) = playlistManager.GetDefaultQueueInfo();
+        var (defaultQueueName, _, _) = playlistManagerService.GetDefaultQueueInfo();
         StatisticsView.InitializePlaylistDropdown(playlists, defaultQueueName);
     }
 

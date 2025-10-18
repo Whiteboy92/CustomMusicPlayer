@@ -5,7 +5,7 @@ using MusicPlayer.Views.Playlist;
 
 namespace MusicPlayer.Services;
 
-public class PlaybackStatePersistence(ISettingsService settingsService)
+public class PlaybackStatePersistenceService(ISettingsService settingsService)
 {
     public void SaveCurrentState(
         string? currentSongPath,

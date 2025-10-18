@@ -31,8 +31,8 @@ public partial class App
         services.AddSingleton<IShuffleService, ShuffleService>();
         services.AddSingleton<IDiscordRpcService, DiscordRpcService>();
         services.AddSingleton<DiscordPresenceUpdater>();
-        services.AddSingleton<PlaybackStatePersistence>();
-        services.AddSingleton<PlaylistManager>();
+        services.AddSingleton<PlaybackStatePersistenceService>();
+        services.AddSingleton<PlaylistManagerService>();
  
         services.AddTransient<IAudioService, AudioService>();
         services.AddTransient<MainWindow>();
