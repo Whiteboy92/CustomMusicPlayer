@@ -77,7 +77,7 @@ namespace MusicPlayer.Views.Playlists {
                 return;
             }
             _contentLoaded = true;
-            System.Uri resourceLocater = new System.Uri("/MusicPlayer;component/views/playlists/playlistsview.xaml", System.UriKind.Relative);
+            System.Uri resourceLocater = new System.Uri("/MusicPlayer;V1.0.0.0;component/views/playlists/playlistsview.xaml", System.UriKind.Relative);
             
             #line 1 "..\..\..\..\..\Views\Playlists\PlaylistsView.xaml"
             System.Windows.Application.LoadComponent(this, resourceLocater);
