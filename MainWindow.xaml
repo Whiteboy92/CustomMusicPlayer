@@ -39,8 +39,8 @@
         <customTitleBar:CustomTitleBar Grid.Row="0"/>
         
         <!-- Main Content Area with Tabs -->
-        <TabControl x:Name="MainTabControl"
-                    Grid.Row="1" 
+        <TabControl
+            Grid.Row="1" 
                     Margin="20"
                     Background="Transparent"
                     BorderThickness="0">

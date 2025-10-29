@@ -72,7 +72,7 @@ public partial class App
 
     private static void CurrentDomain_UnhandledException(object? sender, UnhandledExceptionEventArgs e)
     {
-        var message = e.ExceptionObject is Exception ex ? ($"{ex.Message}\n\n{ex.StackTrace}") : e.ExceptionObject.ToString();
+        var message = e.ExceptionObject is Exception ex ? $"{ex.Message}\n\n{ex.StackTrace}" : e.ExceptionObject.ToString();
         MessageBox.Show(
             $"A fatal error occurred:\n\n{message}",
             "Fatal Error",

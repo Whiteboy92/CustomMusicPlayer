@@ -2,78 +2,72 @@ using System.Windows.Media;
 using MusicPlayer.Interfaces;
 using MusicPlayer.Validation;
 
-namespace MusicPlayer.Services
+namespace MusicPlayer.Services;
+
+public class DurationExtractorService : IDurationExtractorService
 {
-    public class DurationExtractorService : IDurationExtractorService
+    public async Task<TimeSpan?> GetDurationAsync(string filePath)
     {
-        public async Task<TimeSpan?> GetDurationAsync(string filePath)
+        if (!FileSystemValidator.FileExists(filePath))
+            return null;
+
+        var tcs = new TaskCompletionSource<TimeSpan?>();
+
+        await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
         {
-            if (!FileSystemValidator.FileExists(filePath))
-                return null;
-
-            var tcs = new TaskCompletionSource<TimeSpan?>();
-
-            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+            try
             {
-                try
+                var player = new MediaPlayer
                 {
-                    var player = new MediaPlayer
-                    {
-                        Volume = 0,
-                    };
+                    Volume = 0,
+                };
 
-                    player.MediaOpened += (_, _) =>
+                player.MediaOpened += (_, _) =>
+                {
+                    if (player.NaturalDuration.HasTimeSpan)
                     {
-                        if (player.NaturalDuration.HasTimeSpan)
-                        {
-                            tcs.TrySetResult(player.NaturalDuration.TimeSpan);
-                        }
-                        else
-                        {
-                            tcs.TrySetResult(null);
-                        }
-                        player.Close();
-                    };
-
-                    player.MediaFailed += (_, _) =>
+                        tcs.TrySetResult(player.NaturalDuration.TimeSpan);
+                    }
+                    else
                     {
                         tcs.TrySetResult(null);
-                        player.Close();
-                    };
+                    }
+                    player.Close();
+                };
 
-                    player.Open(new Uri(filePath));
-                }
-                catch
+                player.MediaFailed += (_, _) =>
                 {
                     tcs.TrySetResult(null);
-                }
-            });
-            var timeoutTask = Task.Delay(5000);
-            var completedTask = await Task.WhenAny(tcs.Task, timeoutTask);
+                    player.Close();
+                };
 
-            if (completedTask == timeoutTask)
-            {
-                return null;
+                player.Open(new Uri(filePath));
             }
+            catch
+            {
+                tcs.TrySetResult(null);
+            }
+        });
+        var timeoutTask = Task.Delay(5000);
+        var completedTask = await Task.WhenAny(tcs.Task, timeoutTask);
 
-            return await tcs.Task;
-        }
-
-        public string FormatDuration(TimeSpan? duration)
+        if (completedTask == timeoutTask)
         {
-            if (!duration.HasValue)
-                return "--:--";
-
-            var ts = duration.Value;
-            if (ts.TotalHours >= 1)
-            {
-                return $"{(int)ts.TotalHours}:{ts.Minutes:00}:{ts.Seconds:00}";
-            }
-            else
-            {
-                return $"{ts.Minutes:00}:{ts.Seconds:00}";
-            }
+            return null;
         }
+
+        return await tcs.Task;
+    }
+
+    public string FormatDuration(TimeSpan? duration)
+    {
+        if (!duration.HasValue)
+            return "--:--";
+
+        var ts = duration.Value;
+        
+        return ts.TotalHours >= 1 
+            ? $"{(int)ts.TotalHours}:{ts.Minutes:00}:{ts.Seconds:00}" 
+            : $"{ts.Minutes:00}:{ts.Seconds:00}";
     }
 }
-

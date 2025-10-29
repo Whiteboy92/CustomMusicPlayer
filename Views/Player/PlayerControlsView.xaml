@@ -72,8 +72,8 @@
                 <!-- Volume Control with Speaker Icon and Buttons -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
                     <!-- Volume Down Button -->
-                    <Button Name="BtnVolumeDown" 
-                            Style="{StaticResource RoundedButtonStyle}"
+                    <Button
+                        Style="{StaticResource RoundedButtonStyle}"
                             Width="44" Height="44"
                             Click="BtnVolumeDown_Click"
                             Margin="0,0,5,0">
@@ -136,8 +136,8 @@
                     </Grid>
                     
                     <!-- Volume Up Button -->
-                    <Button Name="BtnVolumeUp" 
-                            Style="{StaticResource RoundedButtonStyle}"
+                    <Button
+                        Style="{StaticResource RoundedButtonStyle}"
                             Width="44" Height="44"
                             Click="BtnVolumeUp_Click"
                             Margin="5,0,0,0">
@@ -156,27 +156,31 @@
 
                 <!-- Playback Controls -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
-                    <Button Name="BtnPrevious" Content="⏮ Previous" 
+                    <Button Content="⏮ Previous" 
                             Padding="20,12" Margin="5"
                             Style="{StaticResource RoundedButtonStyle}"
                             FontSize="14"
+                            MinWidth="110"
                             Click="BtnPrevious_Click"/>
                     
                     <Button Name="BtnPlayPause" Content="▶ Play" 
                             Padding="20,12" Margin="5"
                             FontSize="14"
+                            MinWidth="110"
                             Style="{StaticResource PlayButtonStyle}"
                             Click="BtnPlayPause_Click" FontWeight="Bold"/>
                     
-                    <Button Name="BtnShuffle" Content="🔀 Shuffle" 
+                    <Button Content="🔀 Shuffle" 
                             Padding="20,12" Margin="5"
                             FontSize="14"
+                            MinWidth="110"
                             Style="{StaticResource RoundedButtonStyle}"
                             Click="BtnShuffle_Click"/>
                     
-                    <Button Name="BtnNext" Content="Next ⏭" 
+                    <Button Content="Next ⏭" 
                             Padding="20,12" Margin="5"
                             FontSize="14"
+                            MinWidth="110"
                             Style="{StaticResource RoundedButtonStyle}"
                             Click="BtnNext_Click"/>
                 </StackPanel>

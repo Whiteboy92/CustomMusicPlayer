@@ -63,10 +63,7 @@ public class DiscordRpcService : IDiscordRpcService
         }
     }
 
-    /// <summary>
-    /// Updates Discord presence with song information and playback state
-    /// </summary>
-    public void UpdatePresence(string songName, string artist, bool isPlaying, double currentPosition, double duration)
+    public void UpdatePresence(string songName, string artist, bool isPlaying)
     {
         if (!isInitialized || client is not { IsInitialized: true })
         {
@@ -75,9 +72,9 @@ public class DiscordRpcService : IDiscordRpcService
 
         try
         {
-            bool songChanged = lastSongName != songName || lastArtist != artist;
-            bool playStateChanged = lastIsPlaying != isPlaying;
-            bool shouldUpdate = songChanged || playStateChanged;
+            var songChanged = lastSongName != songName || lastArtist != artist;
+            var playStateChanged = lastIsPlaying != isPlaying;
+            var shouldUpdate = songChanged || playStateChanged;
             
             if (!shouldUpdate)
             {
@@ -144,23 +141,23 @@ public class DiscordRpcService : IDiscordRpcService
     {
         lock (lockObject)
         {
-            if (client != null)
+            if (client == null) { return; }
+            
+            try
             {
-                try
-                {
-                    ClearPresence();
-                    client.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error disposing Discord RPC client: {ex.Message}");
-                }
-                finally
-                {
-                    client = null;
-                    isInitialized = false;
-                    activityStartTime = null;
-                }
+                ClearPresence();
+                client.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error disposing Discord RPC client: {ex.Message}");
+            }
+            finally
+            {
+                client = null;
+                isInitialized = false;
+                activityStartTime = null;
+                GC.SuppressFinalize(this);
             }
         }
     }

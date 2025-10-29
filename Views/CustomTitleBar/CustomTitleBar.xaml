@@ -62,7 +62,7 @@
             <!-- Window Control Buttons -->
             <StackPanel Grid.Column="2" Orientation="Horizontal" 
                         WindowChrome.IsHitTestVisibleInChrome="True">
-                <Button Name="BtnMinimize" Content="─" 
+                <Button Content="─" 
                         Width="45" Height="32"
                         FontSize="14"
                         Click="BtnMinimize_Click"
@@ -72,7 +72,7 @@
                         FontSize="14"
                         Click="BtnMaximize_Click"
                         Style="{StaticResource TitleBarButtonStyle}"/>
-                <Button Name="BtnClose" Content="✕" 
+                <Button Content="✕" 
                         Width="45" Height="32"
                         FontSize="14"
                         Click="BtnClose_Click"

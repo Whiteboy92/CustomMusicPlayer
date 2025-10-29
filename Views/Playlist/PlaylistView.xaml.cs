@@ -5,136 +5,154 @@ using System.Windows.Input;
 using MusicPlayer.Models;
 using MusicPlayer.Validation;
 
-namespace MusicPlayer.Views.Playlist
+namespace MusicPlayer.Views.Playlist;
+
+public partial class PlaylistView
 {
-    public partial class PlaylistView
+    public ObservableCollection<MusicFile> Playlist { get; } = [];
+    private ObservableCollection<MusicFile> DisplayedPlaylist { get; } = [];
+    private List<MusicFile> AllVisibleSongs { get; } = [];
+    private string currentSearchText = string.Empty;
+
+    public event EventHandler<MusicFile>? SongSelected;
+
+    public PlaylistView()
     {
-        public ObservableCollection<MusicFile> Playlist { get; private set; } = [];
-        private ObservableCollection<MusicFile> DisplayedPlaylist { get; set; } = [];
+        InitializeComponent();
+        PlaylistBox.ItemsSource = DisplayedPlaylist;
+        UpdateEmptyState();
+    }
 
-        public event EventHandler<MusicFile>? SongSelected;
-
-        public PlaylistView()
-        {
-            InitializeComponent();
-            PlaylistBox.ItemsSource = DisplayedPlaylist;
-            UpdateEmptyState();
-        }
-
-        public void LoadPlaylist(List<MusicFile> songs)
-        {
-            Playlist.Clear();
-            DisplayedPlaylist.Clear();
+    public void LoadPlaylist(List<MusicFile> songs)
+    {
+        Playlist.Clear();
+        DisplayedPlaylist.Clear();
+        AllVisibleSongs.Clear();
             
-            int trackNumber = 1;
-            foreach (var song in songs)
+        var trackNumber = 1;
+        foreach (var song in songs)
+        {
+            song.TrackNumber = trackNumber++;
+            Playlist.Add(song);
+
+            if (!song.IsCompleted)
             {
-                song.TrackNumber = trackNumber++;
-                Playlist.Add(song);
-
-                if (!song.IsCompleted)
-                {
-                    DisplayedPlaylist.Add(song);
-                }
-            }
-            
-            UpdateEmptyState();
-        }
-
-        public void ClearPlaylist()
-        {
-            Playlist.Clear();
-            DisplayedPlaylist.Clear();
-            UpdateEmptyState();
-        }
-
-        private void UpdateEmptyState()
-        {
-            EmptyState.Visibility = DisplayedPlaylist.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        }
-
-        private void PlaylistBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-        }
-
-        private void PlaylistBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-        {
-            if (PlaylistBox.SelectedItem is MusicFile selectedFile)
-            {
-                SongSelected?.Invoke(this, selectedFile);
+                AllVisibleSongs.Add(song);
+                DisplayedPlaylist.Add(song);
             }
         }
+            
+        ApplySearchFilter();
+        UpdateEmptyState();
+    }
 
-        public int SelectedIndex
+    public void ClearPlaylist()
+    {
+        Playlist.Clear();
+        DisplayedPlaylist.Clear();
+        UpdateEmptyState();
+    }
+
+    private void UpdateEmptyState()
+    {
+        EmptyState.Visibility = DisplayedPlaylist.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void PlaylistBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+    }
+
+    private void PlaylistBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (PlaylistBox.SelectedItem is MusicFile selectedFile)
         {
-            get => PlaylistBox.SelectedIndex;
-            set => PlaylistBox.SelectedIndex = value;
+            ClearSearch();
+            SongSelected?.Invoke(this, selectedFile);
         }
+    }
 
-        public MusicFile? GetSongAtIndex(int index)
+    public void ClearSearch()
+    {
+        if (SearchBox != null)
         {
-            if (PlaybackStateValidator.IsValidIndex(index, DisplayedPlaylist.Count))
-                return DisplayedPlaylist[index];
-            return null;
+            SearchBox.Text = string.Empty;
+            currentSearchText = string.Empty;
+            ApplySearchFilter();
         }
+    }
 
-        public int GetPlaylistCount() => DisplayedPlaylist.Count;
+    public int SelectedIndex
+    {
+        get => PlaylistBox.SelectedIndex;
+        set => PlaylistBox.SelectedIndex = value;
+    }
 
-        public ObservableCollection<MusicFile> GetDisplayedPlaylist() => DisplayedPlaylist;
+    public MusicFile? GetSongAtIndex(int index)
+    {
+        return PlaybackStateValidator.IsValidIndex(index, DisplayedPlaylist.Count) ? DisplayedPlaylist[index] : null;
+    }
 
-        public void MarkCurrentSongAsCompleted()
+    public int GetPlaylistCount() => DisplayedPlaylist.Count;
+
+    public ObservableCollection<MusicFile> GetDisplayedPlaylist() => DisplayedPlaylist;
+
+    public List<MusicFile> GetAllVisibleSongs() => AllVisibleSongs.ToList();
+
+    public void MarkCurrentSongAsCompleted()
+    {
+        if (!PlaybackStateValidator.IsValidIndex(PlaylistBox.SelectedIndex, DisplayedPlaylist.Count)) 
+            return;
+            
+        var currentIndex = PlaylistBox.SelectedIndex;
+        var song = DisplayedPlaylist[currentIndex];
+
+        song.IsCompleted = true;
+        AllVisibleSongs.Remove(song);
+            
+        RefreshDisplayedPlaylist();
+            
+        if (PlaybackStateValidator.HasPlaylistItems(DisplayedPlaylist.Count))
         {
-            if (!PlaybackStateValidator.IsValidIndex(PlaylistBox.SelectedIndex, DisplayedPlaylist.Count)) 
-                return;
-            
-            int currentIndex = PlaylistBox.SelectedIndex;
-            var song = DisplayedPlaylist[currentIndex];
-
-            song.IsCompleted = true;
-            DisplayedPlaylist.RemoveAt(currentIndex);
-            
-            UpdateEmptyState();
-            
-            if (PlaybackStateValidator.HasPlaylistItems(DisplayedPlaylist.Count))
+            if (!PlaybackStateValidator.IsValidIndex(currentIndex, DisplayedPlaylist.Count))
             {
-                if (!PlaybackStateValidator.IsValidIndex(currentIndex, DisplayedPlaylist.Count))
-                {
-                    PlaylistBox.SelectedIndex = DisplayedPlaylist.Count - 1;
-                }
-                else
-                {
-                    PlaylistBox.SelectedIndex = -1;
-                    PlaylistBox.SelectedIndex = currentIndex;
-                }
+                PlaylistBox.SelectedIndex = DisplayedPlaylist.Count - 1;
             }
             else
             {
                 PlaylistBox.SelectedIndex = -1;
+                PlaylistBox.SelectedIndex = currentIndex;
             }
         }
-
-        public void RevealPreviousSong()
+        else
         {
-            var currentDisplayedSong = PlaybackStateValidator.IsValidIndex(PlaylistBox.SelectedIndex, DisplayedPlaylist.Count)
-                ? DisplayedPlaylist[PlaylistBox.SelectedIndex] 
-                : null;
+            PlaylistBox.SelectedIndex = -1;
+        }
+    }
 
-            int fullPlaylistIndex = -1;
-            if (currentDisplayedSong != null)
-            {
-                fullPlaylistIndex = Playlist.IndexOf(currentDisplayedSong);
-            }
-            else if (PlaybackStateValidator.HasPlaylistItems(DisplayedPlaylist.Count))
-            {
-                fullPlaylistIndex = Playlist.IndexOf(DisplayedPlaylist[0]);
-            }
+    public void RevealPreviousSong()
+    {
+        MusicFile? currentSong = null;
 
-            MusicFile? previousCompletedSong = null;
-            int previousCompletedIndex = -1;
+        if (PlaybackStateValidator.IsValidIndex(PlaylistBox.SelectedIndex, DisplayedPlaylist.Count))
+        {
+            currentSong = DisplayedPlaylist[PlaylistBox.SelectedIndex];
+        }
+        else if (PlaybackStateValidator.HasPlaylistItems(DisplayedPlaylist.Count))
+        {
+            currentSong = DisplayedPlaylist[0];
+        }
             
-            for (int i = (fullPlaylistIndex > 0 ? fullPlaylistIndex - 1 : Playlist.Count - 1); 
-                 i >= 0; 
-                 i--)
+        if (currentSong != null)
+        {
+        }
+            
+        var playlistIndex = currentSong != null ? Playlist.IndexOf(currentSong) : -1;
+        MusicFile? previousCompletedSong = null;
+        var previousCompletedIndex = -1;
+            
+        if (playlistIndex >= 0)
+        {
+            for (var i = playlistIndex - 1; i >= 0; i--)
             {
                 if (Playlist[i].IsCompleted)
                 {
@@ -143,27 +161,150 @@ namespace MusicPlayer.Views.Playlist
                     break;
                 }
             }
+        }
 
-            if (previousCompletedSong != null)
+        if (previousCompletedSong != null)
+        {
+            previousCompletedSong.IsCompleted = false;
+                
+            var insertIndexInAllVisible = 0;
+            for (var i = 0; i < AllVisibleSongs.Count; i++)
             {
-                previousCompletedSong.IsCompleted = false;
-                
-                int insertIndex = 0;
-                for (int i = 0; i < DisplayedPlaylist.Count; i++)
+                var songIndexInPlaylist = Playlist.IndexOf(AllVisibleSongs[i]);
+                if (songIndexInPlaylist > previousCompletedIndex)
                 {
-                    var displayedSongIndex = Playlist.IndexOf(DisplayedPlaylist[i]);
-                    if (displayedSongIndex > previousCompletedIndex)
-                    {
-                        insertIndex = i;
-                        break;
-                    }
-                    insertIndex = i + 1;
+                    insertIndexInAllVisible = i;
+                    break;
                 }
+                insertIndexInAllVisible = i + 1;
+            }
                 
-                DisplayedPlaylist.Insert(insertIndex, previousCompletedSong);
-                PlaylistBox.SelectedIndex = insertIndex;
-                UpdateEmptyState();
+            AllVisibleSongs.Insert(insertIndexInAllVisible, previousCompletedSong);
+                
+            ClearSearch();
+                
+            RefreshDisplayedPlaylist();
+                
+            var newIndex = DisplayedPlaylist.IndexOf(previousCompletedSong);
+            if (newIndex >= 0)
+            {
+                PlaylistBox.SelectedIndex = newIndex;
             }
         }
+    }
+
+    public void ScrollToTop()
+    {
+        if (DisplayedPlaylist.Count > 0)
+        {
+            PlaylistBox.ScrollIntoView(DisplayedPlaylist[0]);
+        }
+    }
+
+    public void HideSongsBetween(int currentPlayingIndex, int selectedIndex)
+    {
+        if (!PlaybackStateValidator.IsValidIndex(currentPlayingIndex, AllVisibleSongs.Count) ||
+            !PlaybackStateValidator.IsValidIndex(selectedIndex, AllVisibleSongs.Count))
+        {
+            return;
+        }
+
+        if (selectedIndex > currentPlayingIndex)
+        {
+            var songsToHide = new List<MusicFile>();
+            for (var i = currentPlayingIndex; i < selectedIndex; i++)
+            {
+                songsToHide.Add(AllVisibleSongs[i]);
+            }
+
+            foreach (var song in songsToHide)
+            {
+                song.IsCompleted = true;
+                AllVisibleSongs.Remove(song);
+            }
+
+            RefreshDisplayedPlaylist();
+        }
+    }
+
+    public void HideSongsBefore(int beforeIndex)
+    {
+        if (!PlaybackStateValidator.IsValidIndex(beforeIndex, AllVisibleSongs.Count) || beforeIndex <= 0)
+        {
+            return;
+        }
+
+        var songsToHide = new List<MusicFile>();
+        for (var i = 0; i < beforeIndex; i++)
+        {
+            songsToHide.Add(AllVisibleSongs[i]);
+        }
+
+        foreach (var song in songsToHide)
+        {
+            song.IsCompleted = true;
+            AllVisibleSongs.Remove(song);
+        }
+
+        RefreshDisplayedPlaylist();
+    }
+
+    private void RefreshDisplayedPlaylist()
+    {
+        DisplayedPlaylist.Clear();
+            
+        if (string.IsNullOrWhiteSpace(currentSearchText))
+        {
+            foreach (var song in AllVisibleSongs)
+            {
+                DisplayedPlaylist.Add(song);
+            }
+        }
+        else
+        {
+            var searchText = currentSearchText.Trim().ToLowerInvariant();
+            foreach (var song in AllVisibleSongs.Where(song => MatchesSearch(song, searchText)))
+            {
+                DisplayedPlaylist.Add(song);
+            }
+        }
+            
+        UpdateEmptyState();
+    }
+
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (sender is TextBox searchBox)
+        {
+            currentSearchText = searchBox.Text;
+            ApplySearchFilter();
+        }
+    }
+
+    private void ApplySearchFilter()
+    {
+        RefreshDisplayedPlaylist();
+    }
+
+    private static bool MatchesSearch(MusicFile song, string searchText)
+    {
+        var fileName = song.FileName.ToLowerInvariant();
+            
+        if (fileName.Contains(searchText))
+        {
+            return true;
+        }
+            
+        var separators = new[] { " - ", " – ", " — ", "-", "–", "—" };
+        return (from separator in separators
+            where fileName.Contains(separator)
+            let parts = fileName.Split([separator], StringSplitOptions.None)
+            where parts.Length >= 2
+            let artist = parts[0].Trim()
+            let songName = parts.Length > 2
+                ? string.Join(separator, parts.Skip(1)).Trim()
+                : parts[1].Trim()
+            where artist.Contains(searchText) || songName.Contains(searchText)
+            select artist).Any();
     }
 }

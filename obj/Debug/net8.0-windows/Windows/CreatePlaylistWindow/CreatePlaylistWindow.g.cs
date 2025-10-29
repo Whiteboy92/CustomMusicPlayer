@@ -149,8 +149,7 @@ namespace MusicPlayer.Windows.CreatePlaylistWindow {
                 return;
             }
             _contentLoaded = true;
-            System.Uri resourceLocater = new System.Uri("/MusicPlayer;V1.0.0.0;component/windows/createplaylistwindow/createplaylistwindow" +
-                    ".xaml", System.UriKind.Relative);
+            System.Uri resourceLocater = new System.Uri("/MusicPlayer;component/windows/createplaylistwindow/createplaylistwindow.xaml", System.UriKind.Relative);
             
             #line 1 "..\..\..\..\..\Windows\CreatePlaylistWindow\CreatePlaylistWindow.xaml"
             System.Windows.Application.LoadComponent(this, resourceLocater);

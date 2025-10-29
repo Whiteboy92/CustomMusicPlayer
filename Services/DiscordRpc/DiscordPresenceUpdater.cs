@@ -30,21 +30,11 @@ public class DiscordPresenceUpdater(IDiscordRpcService discordRpcService, ISetti
         }
 
         var isPlaying = playerControls.IsPlaying;
-        var currentPosition = playerControls.GetCurrentPositionSeconds();
         var fileName = currentPlayingSong.FileName;
         var format = settingsService.GetSongNameFormat();
         var (artist, songName) = DiscordPresenceHelper.ExtractArtistAndSongName(fileName, format);
-        var durationSeconds = DiscordPresenceHelper.ParseDurationToSeconds(currentPlayingSong.Duration);
 
-        discordRpcService.UpdatePresence(songName, artist, isPlaying, currentPosition, durationSeconds);
-    }
-
-    /// <summary>
-    /// Clears the Discord presence (e.g., when app is closing)
-    /// </summary>
-    public void ClearPresence()
-    {
-        discordRpcService.ClearPresence();
+        discordRpcService.UpdatePresence(songName, artist, isPlaying);
     }
 }
 

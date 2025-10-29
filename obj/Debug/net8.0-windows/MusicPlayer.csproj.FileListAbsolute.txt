@@ -42,7 +42,6 @@ C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Debug\net8.0-windows\M
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Debug\net8.0-windows\Views\CustomTitleBar\CustomTitleBar.baml
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Debug\net8.0-windows\Views\Equalizer\EqualizerView.baml
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Debug\net8.0-windows\Views\Player\PlayerControlsView.baml
-C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Debug\net8.0-windows\Views\Playlists\PlaylistsView.baml
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Debug\net8.0-windows\Views\Settings\SettingsView.baml
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Debug\net8.0-windows\MainWindow.g.cs
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Debug\net8.0-windows\Views\CustomTitleBar\CustomTitleBar.g.cs
@@ -59,6 +58,7 @@ C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Debug\net8.0-windows\M
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Debug\net8.0-windows\MusicPlayer_MarkupCompile.lref
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Debug\net8.0-windows\App.baml
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Debug\net8.0-windows\MainWindow.baml
+C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Debug\net8.0-windows\Views\Playlists\PlaylistsView.baml
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Debug\net8.0-windows\Views\Playlist\PlaylistView.baml
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Debug\net8.0-windows\Views\Statistics\StatisticsView.baml
 C:\Whiteboy\Cursos Porojects\Music Player\MusicPlayer\obj\Debug\net8.0-windows\Windows\CreatePlaylistWindow\CreatePlaylistWindow.baml

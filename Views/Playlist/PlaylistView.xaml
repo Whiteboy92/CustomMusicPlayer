@@ -52,17 +52,57 @@
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="50"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="100"/>
                     </Grid.ColumnDefinitions>
                     
                     <TextBlock Grid.Column="0" Text="#" 
-                               Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" FontSize="13"/>
+                               Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" FontSize="13"
+                               VerticalAlignment="Center"/>
+                    
                     <TextBlock Grid.Column="1" Text="Song Name" 
-                               Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" FontSize="13"/>
-                    <TextBlock Grid.Column="2" Text="Duration" 
+                               Foreground="{StaticResource TextSecondaryBrush}" 
+                               FontWeight="SemiBold" 
+                               FontSize="13"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0"/>
+                    
+                    <!-- Search Bar -->
+                    <Grid Grid.Column="2">
+                        <TextBox x:Name="SearchBox"
+                                 TextChanged="SearchBox_TextChanged"
+                                 VerticalAlignment="Center">
+                            <TextBox.Style>
+                                <Style TargetType="TextBox" BasedOn="{StaticResource TextBoxStyle}">
+                                    <Setter Property="Background" Value="#2d2d2d"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource TextBrush}"/>
+                                </Style>
+                            </TextBox.Style>
+                        </TextBox>
+                        <TextBlock Text="Search by song name or artist..." 
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="13"
+                                   VerticalAlignment="Center"
+                                   Margin="10,0"
+                                   IsHitTestVisible="False">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text.Length, ElementName=SearchBox}" Value="0">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                    
+                    <TextBlock Grid.Column="3" Text="Duration" 
                                Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold" FontSize="13" 
-                               HorizontalAlignment="Right"/>
+                               HorizontalAlignment="Right"
+                               VerticalAlignment="Center"/>
                 </Grid>
             </Border>
 
