@@ -1,0 +1,22 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.dll
+*.pdb
+*.exe
+
+# Rider / ReSharper
+.idea/
+*.DotSettings.user
+*.user
+
+# Visual Studio
+.vs/
+*.suo
+*.userprefs
+
+# OS
+Thumbs.db
+.DS_Store

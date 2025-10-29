@@ -1,79 +1,50 @@
-using System.Windows.Media;
 using MusicPlayer.Interfaces;
 using MusicPlayer.Validation;
+using NAudio.Wave;
 
-namespace MusicPlayer.Services
+namespace MusicPlayer.Services;
+
+public class DurationExtractorService : IDurationExtractorService
 {
-    public class DurationExtractorService : IDurationExtractorService
+    public Task<TimeSpan?> GetDurationAsync(string filePath)
     {
-        public async Task<TimeSpan?> GetDurationAsync(string filePath)
+        // Runs on a threadpool thread (no UI dispatcher), so the bounded-parallel
+        // analyze loop actually runs in parallel. NAudio reads the duration from
+        // the MP3 frame index without decoding audio.
+        return Task.Run<TimeSpan?>(() =>
         {
             if (!FileSystemValidator.FileExists(filePath))
                 return null;
 
-            var tcs = new TaskCompletionSource<TimeSpan?>();
-
-            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+            try
+            {
+                using var reader = new Mp3FileReader(filePath);
+                return reader.TotalTime;
+            }
+            catch
             {
                 try
                 {
-                    var player = new MediaPlayer
-                    {
-                        Volume = 0,
-                    };
-
-                    player.MediaOpened += (_, _) =>
-                    {
-                        if (player.NaturalDuration.HasTimeSpan)
-                        {
-                            tcs.TrySetResult(player.NaturalDuration.TimeSpan);
-                        }
-                        else
-                        {
-                            tcs.TrySetResult(null);
-                        }
-                        player.Close();
-                    };
-
-                    player.MediaFailed += (_, _) =>
-                    {
-                        tcs.TrySetResult(null);
-                        player.Close();
-                    };
-
-                    player.Open(new Uri(filePath));
+                    using var reader = new AudioFileReader(filePath);
+                    return reader.TotalTime;
                 }
                 catch
                 {
-                    tcs.TrySetResult(null);
+                    return null;
                 }
-            });
-            var timeoutTask = Task.Delay(5000);
-            var completedTask = await Task.WhenAny(tcs.Task, timeoutTask);
-
-            if (completedTask == timeoutTask)
-            {
-                return null;
             }
+        });
+    }
 
-            return await tcs.Task;
-        }
+    public string FormatDuration(TimeSpan? duration)
+    {
+        if (!duration.HasValue)
+            return "--:--";
 
-        public string FormatDuration(TimeSpan? duration)
-        {
-            if (!duration.HasValue)
-                return "--:--";
+        var ts = duration.Value;
 
-            var ts = duration.Value;
-            if (ts.TotalHours >= 1)
-            {
-                return $"{(int)ts.TotalHours}:{ts.Minutes:00}:{ts.Seconds:00}";
-            }
-            else
-            {
-                return $"{ts.Minutes:00}:{ts.Seconds:00}";
-            }
-        }
+        return ts.TotalHours >= 1
+            ? $"{(int)ts.TotalHours}:{ts.Minutes:00}:{ts.Seconds:00}"
+            : $"{ts.Minutes:00}:{ts.Seconds:00}";
     }
 }
-

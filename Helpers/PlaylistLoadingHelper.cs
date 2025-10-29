@@ -13,14 +13,14 @@ public static class PlaylistLoadingHelper
         var playlist = settings.GetPlaylistById(playlistId);
         if (playlist == null)
         {
-            return new List<MusicFile>();
+            return [];
         }
 
         var allSongs = await musicLoader.LoadMusicFromFolderAsync();
         var cachedPlayCounts = settings.GetPlayCountsForPlaylist(playlistId);
         var cachedDurations = settings.GetAllDurations();
 
-        List<MusicFile> playlistSongs = new();
+        List<MusicFile> playlistSongs = [];
         
         foreach (var filePath in playlist.SongFilePaths)
         {
@@ -54,20 +54,14 @@ public static class PlaylistLoadingHelper
             var playlist = settings.GetPlaylistById(playlistId.Value);
             if (playlist == null)
             {
-                return new List<MusicFile>();
+                return [];
             }
             
             var allSongs = await musicLoader.LoadMusicFromFolderAsync();
             
-            songsToAnalyze = new();
-            foreach (var filePath in playlist.SongFilePaths)
-            {
-                var song = allSongs.FirstOrDefault(s => s.FilePath == filePath);
-                if (song != null)
-                {
-                    songsToAnalyze.Add(song);
-                }
-            }
+            songsToAnalyze = [];
+            songsToAnalyze.AddRange(playlist.SongFilePaths.Select(filePath 
+                => allSongs.FirstOrDefault(s => s.FilePath == filePath)).OfType<MusicFile>());
         }
         else
         {

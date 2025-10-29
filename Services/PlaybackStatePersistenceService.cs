@@ -50,20 +50,23 @@ public class PlaybackStatePersistenceService(ISettingsService settingsService)
         if (PlaybackStateValidator.IsValidIndex(playlistView.SelectedIndex, playlistView.GetPlaylistCount()))
         {
             var currentSong = playlistView.GetSongAtIndex(playlistView.SelectedIndex);
-            if (currentSong != null)
+            
+            if (currentSong == null)
             {
-                var cumulativeTime = playerControls.GetCumulativePlayedTime();
-                settingsService.SaveCumulativePlayedTime(currentSong.FilePath, cumulativeTime);
-
-                if (playerControls.WasPlayedEnough())
-                {
-                    currentSong.PlayCount++;
-                    settingsService.IncrementPlayCountForPlaylist(currentSong.FilePath, currentPlaylistId);
-                    settingsService.SaveCumulativePlayedTime(currentSong.FilePath, 0);
-                }
-
-                settingsService.FlushToDisk();
+                return;
             }
+            
+            var cumulativeTime = playerControls.GetCumulativePlayedTime();
+            settingsService.SaveCumulativePlayedTime(currentSong.FilePath, cumulativeTime);
+
+            if (playerControls.WasPlayedEnough())
+            {
+                currentSong.PlayCount++;
+                settingsService.IncrementPlayCountForPlaylist(currentSong.FilePath, currentPlaylistId);
+                settingsService.SaveCumulativePlayedTime(currentSong.FilePath, 0);
+            }
+
+            settingsService.FlushToDisk();
         }
     }
 }

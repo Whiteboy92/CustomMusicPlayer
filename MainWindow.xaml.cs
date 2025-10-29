@@ -27,7 +27,7 @@ public partial class MainWindow
     private double currentSongPosition;
     private bool songJustFinished;
     private int? currentPlaylistId;
-    private List<MusicFile> currentPlaylistSongs = new();
+    private List<MusicFile> currentPlaylistSongs = [];
 
     public MainWindow(
         IMusicLoaderService musicLoaderService, 
@@ -54,7 +54,7 @@ public partial class MainWindow
         
         memoryPositionTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(250),
+            Interval = TimeSpan.FromMilliseconds(200),
         };
         
         memoryPositionTimer.Tick += MemoryPositionTimer_Tick;
@@ -62,14 +62,14 @@ public partial class MainWindow
         
         savePositionTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromSeconds(5),
+            Interval = TimeSpan.FromSeconds(3),
         };
         savePositionTimer.Tick += SavePositionTimer_Tick;
         savePositionTimer.Start();
         
         discordUpdateTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromSeconds(5),
+            Interval = TimeSpan.FromSeconds(3),
         };
         discordUpdateTimer.Tick += DiscordUpdateTimer_Tick;
         discordUpdateTimer.Start();
@@ -89,6 +89,7 @@ public partial class MainWindow
         PlayerControlsView.MediaOpenedEvent += PlayerControlsView_MediaOpenedEvent;
         EqualizerView.EqualizerChanged += EqualizerView_EqualizerChanged;
         PlayerControlsView.VolumeChanged += PlayerControlsView_VolumeChanged;
+        PlayerControlsView.AutoPlayChanged += PlayerControlsView_AutoPlayChanged;
         SettingsView.MusicFolderChangeRequested += SettingsView_MusicFolderChangeRequested;
         SettingsView.DatabaseResetRequested += SettingsView_DatabaseResetRequested;
         SettingsView.PlayHistoryClearRequested += SettingsView_PlayHistoryClearRequested;
@@ -100,6 +101,29 @@ public partial class MainWindow
     {
         settings.SaveVolumePercent(e);
         settings.FlushToDisk();
+    }
+
+    private void PlayerControlsView_AutoPlayChanged(object? sender, bool e)
+    {
+        settings.SaveAutoPlayNext(e);
+        settings.FlushToDisk();
+
+        // Enabling autoplay while a finished song sits idle at the end of the
+        // queue: pick up where auto-advance would have, instead of waiting for
+        // the next manual Play.
+        if (e && songJustFinished && !PlayerControlsView.IsPlaying)
+        {
+            songJustFinished = false;
+
+            if (PlaybackStateValidator.HasPlaylistItems(PlaylistView.GetPlaylistCount()))
+            {
+                PlayNextSong();
+            }
+            else
+            {
+                ResetPlaylistAndPlayFromStart();
+            }
+        }
     }
 
     private void MemoryPositionTimer_Tick(object? sender, EventArgs e)
@@ -147,29 +171,40 @@ public partial class MainWindow
 
     private void DisposeResources()
     {
+        memoryPositionTimer?.Stop();
+        savePositionTimer?.Stop();
+        discordUpdateTimer?.Stop();
+
         settings.Dispose();
         PlayerControlsView.Dispose();
+        discordRpc.ClearPresence();
         discordRpc.Dispose();
     }
 
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        // Point the music loader at the saved folder BEFORE anything reads the
+        // song count (PlaylistsView.Initialize -> LoadPlaylists). Otherwise the
+        // count uses the loader's hardcoded default path and shows 0 songs.
+        LoadSettingsIntoMusicLoader();
+
         PlaylistsView.Initialize(settings, musicLoader);
         PlaylistsView.PlaylistCreated += PlaylistsView_PlaylistCreated;
         PlaylistsView.PlaylistEdited += PlaylistsView_PlaylistEdited;
         PlaylistsView.PlaylistDeleted += PlaylistsView_PlaylistDeleted;
-        
+
         var playlists = settings.GetAllPlaylists();
-        var (defaultQueueName, _, _) = playlistManagerService.GetDefaultQueueInfo();
+        var defaultQueueName = playlistManagerService.GetDefaultQueueName();
         StatisticsView.InitializePlaylistDropdown(playlists, defaultQueueName);
         StatisticsView.PlaylistSelectionChanged += StatisticsView_PlaylistSelectionChanged;
-        
-        LoadSettingsIntoMusicLoader();
+
         LoadSettingsIntoUi();
         LoadEqualizerSettings();
 
         var savedVolume = settings.GetVolumePercent();
         PlayerControlsView.SetVolumePercent(savedVolume);
+
+        PlayerControlsView.SetAutoPlay(settings.GetAutoPlayNext());
         
         InitializeDiscordRpc();
         PopulatePlaylistDropdown();
@@ -188,32 +223,42 @@ public partial class MainWindow
     private void RestoreSavedPlaylist()
     {
         var savedPlaylistId = settings.GetCurrentPlaylistId();
-        
-        if (savedPlaylistId is >= -1)
+
+        // Detach so setting SelectedIndex below does not re-trigger
+        // PlaylistDropdown_SelectionChanged and load the playlist twice.
+        PlaylistDropdown.SelectionChanged -= PlaylistDropdown_SelectionChanged;
+        try
         {
-            for (int i = 0; i < PlaylistDropdown.Items.Count; i++)
+            if (savedPlaylistId is >= -1)
             {
-                if (PlaylistDropdown.Items[i] is PlaylistDropdownItem item && item.Id == savedPlaylistId.Value)
+                for (var i = 0; i < PlaylistDropdown.Items.Count; i++)
                 {
-                    PlaylistDropdown.SelectedIndex = i;
-                    currentPlaylistId = savedPlaylistId.Value;
-                    
-                    if (savedPlaylistId.Value == -1)
+                    if (PlaylistDropdown.Items[i] is PlaylistDropdownItem item && item.Id == savedPlaylistId.Value)
                     {
-                        LoadMusicFromFolder();
+                        PlaylistDropdown.SelectedIndex = i;
+                        currentPlaylistId = savedPlaylistId.Value;
+
+                        if (savedPlaylistId.Value == -1)
+                        {
+                            LoadMusicFromFolder();
+                        }
+                        else
+                        {
+                            LoadPlaylist(savedPlaylistId.Value);
+                        }
+                        return;
                     }
-                    else
-                    {
-                        LoadPlaylist(savedPlaylistId.Value);
-                    }
-                    return;
                 }
             }
+
+            currentPlaylistId = -1;
+            PlaylistDropdown.SelectedIndex = 0;
+            LoadMusicFromFolder();
         }
-        
-        currentPlaylistId = -1;
-        PlaylistDropdown.SelectedIndex = 0;
-        LoadMusicFromFolder();
+        finally
+        {
+            PlaylistDropdown.SelectionChanged += PlaylistDropdown_SelectionChanged;
+        }
     }
 
     private void LoadSettingsIntoMusicLoader()
@@ -264,7 +309,7 @@ public partial class MainWindow
         
         PlaylistLoadingHelper.ApplyMetadataToSongs(allSongs, playlistCounts, cachedDurations);
         
-        StatisticsView.LoadStatistics(allSongs, currentPlaylistId);
+        StatisticsView.LoadStatistics(allSongs);
     }
     
     private void EqualizerView_EqualizerChanged(object? sender, (float band80, float band240, float band750, float band2200, float band6600) e)
@@ -277,10 +322,14 @@ public partial class MainWindow
         settings.SaveEqualizerSettings(e.band80, e.band240, e.band750, e.band2200, e.band6600);
     }
 
+    private bool restoreSucceeded;
+
     private void RestorePlaybackState()
     {
+        restoreSucceeded = false;
         PlaybackHelper.RestorePlaybackState(settings, PlaylistView, PlayerControlsView, this.Dispatcher, song =>
         {
+            restoreSucceeded = true;
             discordPresenceUpdater.SetCurrentSong(song);
         }, currentPlaylistId);
     }
@@ -292,11 +341,11 @@ public partial class MainWindow
             if (!MusicLoadingHelper.ValidateMusicFolderExists(musicLoader))
                 return;
 
-            int currentFileCount = await musicLoader.GetMusicFileCountAsync();
-            int databaseSongCount = settings.GetDatabaseSongCount();
+            var currentFileCount = await musicLoader.GetMusicFileCountAsync();
+            var databaseSongCount = settings.GetDatabaseSongCount();
             var (savedQueuePaths, wasShuffled) = settings.GetCurrentQueue();
-            bool hasSavedQueue = savedQueuePaths is { Count: > 0 };
-            bool shouldReload = forceReload || (currentFileCount != databaseSongCount) || (!hasSavedQueue && PlaylistView.GetPlaylistCount() == 0);
+            var hasSavedQueue = savedQueuePaths is { Count: > 0 };
+            var shouldReload = forceReload || currentFileCount != databaseSongCount || (!hasSavedQueue && PlaylistView.GetPlaylistCount() == 0);
 
             if (shouldReload || hasSavedQueue)
             {
@@ -333,14 +382,75 @@ public partial class MainWindow
     private void DisplayPlaylist(List<MusicFile> songs)
     {
         PlaylistView.LoadPlaylist(songs);
+        StatisticsView.SetSelectedPlaylist(currentPlaylistId);
         LoadStatistics();
         UpdateSettingsStats();
     }
 
     private void PlaylistView_SongSelected(object? sender, MusicFile musicFile)
     {
+        // Manually picking a song supersedes any pending "song just finished"
+        // state, so the Next button works on the first press afterwards.
+        songJustFinished = false;
+
         SaveCurrentSongPlayCountIfNeeded();
+
+        HandleSongSelection(musicFile);
         
+        PlaylistView.ScrollToTop();
+        
+        PlaySelectedSong(musicFile);
+    }
+
+    private void HandleSongSelection(MusicFile selectedSong)
+    {
+        var allVisibleSongs = PlaylistView.GetAllVisibleSongs();
+        var selectedSongIndex = allVisibleSongs.IndexOf(selectedSong);
+        
+        if (selectedSongIndex < 0)
+        {
+            return;
+        }
+
+        var currentlyPlayingSongPath = PlayerControlsView.GetCurrentSongPath();
+        var currentlyPlayingIndex = -1;
+        
+        if (!string.IsNullOrEmpty(currentlyPlayingSongPath))
+        {
+            var currentlyPlayingSong = allVisibleSongs.FirstOrDefault(s => s.FilePath == currentlyPlayingSongPath);
+            if (currentlyPlayingSong != null)
+            {
+                currentlyPlayingIndex = allVisibleSongs.IndexOf(currentlyPlayingSong);
+            }
+        }
+
+        if (currentlyPlayingIndex >= 0 && selectedSongIndex > currentlyPlayingIndex)
+        {
+            PlaylistView.HideSongsBetween(currentlyPlayingIndex, selectedSongIndex);
+        }
+        else if (selectedSongIndex > 0)
+        {
+            PlaylistView.HideSongsBefore(selectedSongIndex);
+        }
+        
+        UpdateSelectionForSong(selectedSong);
+    }
+
+    private void UpdateSelectionForSong(MusicFile song)
+    {
+        var displayedPlaylist = PlaylistView.GetDisplayedPlaylist();
+        for (var i = 0; i < displayedPlaylist.Count; i++)
+        {
+            if (displayedPlaylist[i].FilePath == song.FilePath)
+            {
+                PlaylistView.SelectedIndex = i;
+                return;
+            }
+        }
+    }
+
+    private void PlaySelectedSong(MusicFile musicFile)
+    {
         discordPresenceUpdater.SetCurrentSong(musicFile);
         PlayerControlsView.PlaySong(musicFile);
         
@@ -372,12 +482,31 @@ public partial class MainWindow
 
     private void PlayerControlsView_PlayRequested(object? sender, EventArgs e)
     {
+        // A song ended with autoplay off: the audio device still holds the
+        // finished (and now de-listed) track, so a plain Play would resume that
+        // dead source. Start the next selected song instead, mirroring the
+        // auto-advance path.
+        if (songJustFinished)
+        {
+            songJustFinished = false;
+
+            if (PlaybackStateValidator.HasPlaylistItems(PlaylistView.GetPlaylistCount()))
+            {
+                PlayNextSong();
+            }
+            else
+            {
+                ResetPlaylistAndPlayFromStart();
+            }
+            return;
+        }
+
         if (PlayerControlsView.HasSource)
         {
             PlayerControlsView.Play();
             return;
         }
-        
+
         if (PlaybackStateValidator.HasPlaylistItems(PlaylistView.GetPlaylistCount()))
         {
             PlayFromSavedOrFirstSong();
@@ -390,7 +519,7 @@ public partial class MainWindow
 
     private void PlayFromSavedOrFirstSong()
     {
-        int startIndex = settings.GetLastPlayedIndex();
+        var startIndex = settings.GetLastPlayedIndex();
         if (!PlaybackStateValidator.IsValidIndex(startIndex, PlaylistView.GetPlaylistCount()))
         {
             startIndex = 0;
@@ -423,13 +552,13 @@ public partial class MainWindow
         if (PlaylistView.SelectedIndex > 0)
         {
             PlaylistView.SelectedIndex--;
-            PlaySelectedSong();
         }
         else
         {
             PlaylistView.RevealPreviousSong();
-            PlaySelectedSong();
         }
+
+        PlaySelectedSong();
     }
 
     private void PlaySelectedSong()
@@ -437,13 +566,7 @@ public partial class MainWindow
         var song = PlaylistView.GetSongAtIndex(PlaylistView.SelectedIndex);
         if (song == null) return;
 
-        discordPresenceUpdater.SetCurrentSong(song);
-        PlayerControlsView.PlaySong(song);
-        
-        var cumulativeTime = settings.GetCumulativePlayedTime(song.FilePath);
-        PlayerControlsView.SetCumulativePlayedTime(cumulativeTime);
-        
-        settings.UpdateLastPlayedIndex(PlaylistView.SelectedIndex);
+        PlaySelectedSong(song);
     }
 
     private void PlayerControlsView_ShuffleRequested(object? sender, EventArgs e)
@@ -481,7 +604,6 @@ public partial class MainWindow
     {
         playbackStatePersistenceService.SaveCurrentSongPlayCount(PlaylistView, PlayerControlsView, currentPlaylistId);
         
-        // Reload statistics if play count was incremented
         if (PlaybackStateValidator.IsValidIndex(PlaylistView.SelectedIndex, PlaylistView.GetPlaylistCount()))
         {
             var currentSong = PlaylistView.GetSongAtIndex(PlaylistView.SelectedIndex);
@@ -498,12 +620,18 @@ public partial class MainWindow
         {
             isShuffled = true;
 
+            foreach (var song in shuffledQueue)
+            {
+                song.IsCompleted = false;
+            }
+
             if (PlaybackStateValidator.HasPlaylistItems(shuffledQueue.Count))
             {
                 var firstSong = shuffledQueue[0];
 
                 PlaylistView.LoadPlaylist(shuffledQueue);
                 PlaylistView.SelectedIndex = 0;
+                PlaylistView.ScrollToTop();
                 SaveCurrentQueue();
 
                 await Dispatcher.InvokeAsync(() =>
@@ -636,16 +764,23 @@ public partial class MainWindow
         {
             PlayerControlsView.Stop();
             settings.ResetDatabase();
+            currentPlaylistId = -1;
             PlaylistView.ClearPlaylist();
             LoadSettingsIntoUi();
             LoadStatistics();
-            
+
+            // Playlists were wiped by the reset; rebuild every dropdown.
+            PopulatePlaylistDropdown();
+            var playlists = settings.GetAllPlaylists();
+            var defaultQueueName = playlistManagerService.GetDefaultQueueName();
+            StatisticsView.InitializePlaylistDropdown(playlists, defaultQueueName);
+
             MessageBox.Show(
-                "Database has been reset successfully!\n\nAll play counts, statistics, and settings have been cleared.",
+                "Database has been reset successfully!\n\nAll play counts, statistics, playlists, and settings have been cleared.",
                 "Reset Complete",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
-            
+
             LoadMusicFromFolder(forceReload: true);
             PlaylistsView.LoadPlaylists();
         }
@@ -710,7 +845,7 @@ public partial class MainWindow
         
         if (currentPlaylistId.HasValue)
         {
-            playlistManagerService.SetDropdownSelection(PlaylistDropdown, currentPlaylistId.Value);
+            PlaylistManagerService.SetDropdownSelection(PlaylistDropdown, currentPlaylistId.Value);
         }
         else
         {
@@ -741,24 +876,66 @@ public partial class MainWindow
 
     private async void LoadPlaylist(int playlistId)
     {
-        var playlistSongs = await PlaylistLoadingHelper.LoadPlaylistSongsAsync(playlistId, musicLoader, settings);
-        
-        if (playlistSongs.Count == 0)
+        try
         {
-            var playlist = settings.GetPlaylistById(playlistId);
-            if (playlist == null)
+            var playlistSongs = await PlaylistLoadingHelper.LoadPlaylistSongsAsync(playlistId, musicLoader, settings);
+        
+            if (playlistSongs.Count == 0)
             {
-                MessageBox.Show("Playlist not found.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
+                var playlist = settings.GetPlaylistById(playlistId);
+                if (playlist == null)
+                {
+                    MessageBox.Show("Playlist not found.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+            }
+
+            var (savedPathForPlaylist, _) = settings.GetCurrentPlaybackState(playlistId);
+            if (!string.IsNullOrEmpty(savedPathForPlaylist))
+            {
+                foreach (var s in playlistSongs)
+                {
+                    s.IsCompleted = false;
+                }
+                var savedIndex = playlistSongs.FindIndex(s => s.FilePath == savedPathForPlaylist);
+                if (savedIndex > 0)
+                {
+                    for (int i = 0; i < savedIndex; i++)
+                    {
+                        playlistSongs[i].IsCompleted = true;
+                    }
+                }
+            }
+
+            currentPlaylistSongs = playlistSongs;
+            isShuffled = false;
+            DisplayPlaylist(playlistSongs);
+        
+            await Task.Delay(100);
+            RestorePlaybackState();
+
+            if (!restoreSucceeded && PlaylistView.GetPlaylistCount() > 0)
+            {
+                PlaylistView.SelectedIndex = 0;
+                var firstSong = PlaylistView.GetSongAtIndex(0);
+                if (firstSong != null)
+                {
+                    discordPresenceUpdater.SetCurrentSong(firstSong);
+                    PlayerControlsView.PlaySong(firstSong);
+                    var cumulativeTime = settings.GetCumulativePlayedTime(firstSong.FilePath);
+                    PlayerControlsView.SetCumulativePlayedTime(cumulativeTime);
+                    settings.UpdateLastPlayedIndex(0);
+                }
             }
         }
-
-        currentPlaylistSongs = playlistSongs;
-        isShuffled = false;
-        DisplayPlaylist(playlistSongs);
-        
-        await Task.Delay(100);
-        RestorePlaybackState();
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Error loading playlist:\n\n{ex.Message}",
+                "Load Playlist Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private void PlaylistsView_PlaylistCreated(object? sender, EventArgs e)
@@ -766,47 +943,57 @@ public partial class MainWindow
         PopulatePlaylistDropdown();
         
         var playlists = settings.GetAllPlaylists();
-        var (defaultQueueName, _, _) = playlistManagerService.GetDefaultQueueInfo();
+        var defaultQueueName = playlistManagerService.GetDefaultQueueName();
         StatisticsView.InitializePlaylistDropdown(playlists, defaultQueueName);
     }
 
     private async void PlaylistsView_PlaylistEdited(object? sender, int editedPlaylistId)
     {
-        PopulatePlaylistDropdown();
-        PlaylistsView.LoadPlaylists();
-        
-        var playlists = settings.GetAllPlaylists();
-        var (defaultQueueName, _, _) = playlistManagerService.GetDefaultQueueInfo();
-        StatisticsView.InitializePlaylistDropdown(playlists, defaultQueueName);
-        
-        if (currentPlaylistId == editedPlaylistId)
+        try
         {
-            // Special handling for default queue - just update the dropdown name, queue stays the same
-            if (editedPlaylistId == -1)
+            PopulatePlaylistDropdown();
+            PlaylistsView.LoadPlaylists();
+        
+            var playlists = settings.GetAllPlaylists();
+            var defaultQueueName = playlistManagerService.GetDefaultQueueName();
+            StatisticsView.InitializePlaylistDropdown(playlists, defaultQueueName);
+        
+            if (currentPlaylistId == editedPlaylistId)
             {
-                playlistManagerService.SetDropdownSelection(PlaylistDropdown, editedPlaylistId);
-                return;
+                if (editedPlaylistId == -1)
+                {
+                    PlaylistManagerService.SetDropdownSelection(PlaylistDropdown, editedPlaylistId);
+                    return;
+                }
+            
+                var currentlyPlayingSongPath = PlayerControlsView.GetCurrentSongPath();
+            
+                var playlist = settings.GetPlaylistById(editedPlaylistId);
+                if (playlist == null)
+                {
+                    currentPlaylistId = -1;
+                    PlaylistDropdown.SelectedIndex = 0;
+                    LoadMusicFromFolder(forceReload: true);
+                    return;
+                }
+            
+                var songStillInPlaylist = !string.IsNullOrEmpty(currentlyPlayingSongPath) && 
+                                          playlist.SongFilePaths.Contains(currentlyPlayingSongPath);
+            
+                await ReloadEditedPlaylist(editedPlaylistId, songStillInPlaylist);
+
+                PlaylistManagerService.SetDropdownSelection(PlaylistDropdown, editedPlaylistId);
+            
+                LoadStatistics();
             }
-            
-            var currentlyPlayingSongPath = PlayerControlsView.GetCurrentSongPath();
-            
-            var playlist = settings.GetPlaylistById(editedPlaylistId);
-            if (playlist == null)
-            {
-                currentPlaylistId = -1;
-                PlaylistDropdown.SelectedIndex = 0;
-                LoadMusicFromFolder(forceReload: true);
-                return;
-            }
-            
-            var songStillInPlaylist = !string.IsNullOrEmpty(currentlyPlayingSongPath) && 
-                                      playlist.SongFilePaths.Contains(currentlyPlayingSongPath);
-            
-            await ReloadEditedPlaylist(editedPlaylistId, songStillInPlaylist);
-            
-            playlistManagerService.SetDropdownSelection(PlaylistDropdown, editedPlaylistId);
-            
-            LoadStatistics();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Error editing playlist:\n\n{ex.Message}",
+                "Edit Playlist Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 
@@ -836,18 +1023,25 @@ public partial class MainWindow
         }
     }
 
-    private void PlaylistsView_PlaylistDeleted(object? sender, EventArgs e)
+    private void PlaylistsView_PlaylistDeleted(object? sender, int deletedPlaylistId)
     {
+        var wasActive = currentPlaylistId == deletedPlaylistId;
+
         PopulatePlaylistDropdown();
-        
-        currentPlaylistId = -1;
-        PlaylistDropdown.SelectedIndex = 0;
-        LoadMusicFromFolder(forceReload: true);
-        LoadStatistics();
-        
+
         var playlists = settings.GetAllPlaylists();
-        var (defaultQueueName, _, _) = playlistManagerService.GetDefaultQueueInfo();
+        var defaultQueueName = playlistManagerService.GetDefaultQueueName();
         StatisticsView.InitializePlaylistDropdown(playlists, defaultQueueName);
+
+        // Only disturb playback/view if the deleted playlist was the active one.
+        // Deleting a different playlist must not stop the current song.
+        if (wasActive)
+        {
+            currentPlaylistId = -1;
+            PlaylistDropdown.SelectedIndex = 0;
+            LoadMusicFromFolder(forceReload: true);
+            LoadStatistics();
+        }
     }
 
     private async void StatisticsView_PlaylistSelectionChanged(object? sender, int? playlistId)
@@ -855,7 +1049,7 @@ public partial class MainWindow
         try
         {
             var songsToAnalyze = await PlaylistLoadingHelper.LoadStatisticsSongsAsync(playlistId, musicLoader, settings);
-            StatisticsView.LoadStatistics(songsToAnalyze, playlistId.HasValue && playlistId.Value != -1 ? playlistId.Value : null);
+            StatisticsView.LoadStatistics(songsToAnalyze);
         }
         catch (Exception ex)
         {

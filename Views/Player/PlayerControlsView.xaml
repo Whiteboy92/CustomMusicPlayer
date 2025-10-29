@@ -72,8 +72,8 @@
                 <!-- Volume Control with Speaker Icon and Buttons -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
                     <!-- Volume Down Button -->
-                    <Button Name="BtnVolumeDown" 
-                            Style="{StaticResource RoundedButtonStyle}"
+                    <Button
+                        Style="{StaticResource RoundedButtonStyle}"
                             Width="44" Height="44"
                             Click="BtnVolumeDown_Click"
                             Margin="0,0,5,0">
@@ -136,8 +136,8 @@
                     </Grid>
                     
                     <!-- Volume Up Button -->
-                    <Button Name="BtnVolumeUp" 
-                            Style="{StaticResource RoundedButtonStyle}"
+                    <Button
+                        Style="{StaticResource RoundedButtonStyle}"
                             Width="44" Height="44"
                             Click="BtnVolumeUp_Click"
                             Margin="5,0,0,0">
@@ -156,29 +156,69 @@
 
                 <!-- Playback Controls -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
-                    <Button Name="BtnPrevious" Content="⏮ Previous" 
+                    <Button Content="⏮ Previous" 
                             Padding="20,12" Margin="5"
                             Style="{StaticResource RoundedButtonStyle}"
                             FontSize="14"
+                            MinWidth="110"
                             Click="BtnPrevious_Click"/>
                     
                     <Button Name="BtnPlayPause" Content="▶ Play" 
                             Padding="20,12" Margin="5"
                             FontSize="14"
+                            MinWidth="110"
                             Style="{StaticResource PlayButtonStyle}"
                             Click="BtnPlayPause_Click" FontWeight="Bold"/>
                     
-                    <Button Name="BtnShuffle" Content="🔀 Shuffle" 
+                    <Button Content="🔀 Shuffle" 
                             Padding="20,12" Margin="5"
                             FontSize="14"
+                            MinWidth="110"
                             Style="{StaticResource RoundedButtonStyle}"
                             Click="BtnShuffle_Click"/>
                     
-                    <Button Name="BtnNext" Content="Next ⏭" 
+                    <Button Content="Next ⏭"
                             Padding="20,12" Margin="5"
                             FontSize="14"
+                            MinWidth="110"
                             Style="{StaticResource RoundedButtonStyle}"
                             Click="BtnNext_Click"/>
+                </StackPanel>
+
+                <!-- Autoplay toggle (right side) -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal"
+                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Margin="0,0,5,0">
+                    <TextBlock Text="Autoplay"
+                               Foreground="{StaticResource TextBrush}"
+                               FontSize="14" VerticalAlignment="Center"
+                               Margin="0,0,10,0"/>
+                    <ToggleButton x:Name="BtnAutoplay" IsChecked="True"
+                                  Cursor="Hand" VerticalAlignment="Center"
+                                  Checked="BtnAutoplay_Checked"
+                                  Unchecked="BtnAutoplay_Unchecked">
+                        <ToggleButton.Template>
+                            <ControlTemplate TargetType="ToggleButton">
+                                <Border x:Name="Track" Width="48" Height="26"
+                                        CornerRadius="13" Background="#555555">
+                                    <Ellipse x:Name="Knob" Width="20" Height="20"
+                                             Fill="White"
+                                             HorizontalAlignment="Left"
+                                             Margin="3,0,0,0"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter TargetName="Track" Property="Background"
+                                                Value="{StaticResource AccentBrush}"/>
+                                        <Setter TargetName="Knob" Property="HorizontalAlignment"
+                                                Value="Right"/>
+                                        <Setter TargetName="Knob" Property="Margin"
+                                                Value="0,0,3,0"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </ToggleButton.Template>
+                    </ToggleButton>
                 </StackPanel>
             </Grid>
         </Border>

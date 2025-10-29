@@ -4,26 +4,19 @@ using MusicPlayer.Models;
 
 namespace MusicPlayer.Services;
 
-public class PlaylistManagerService
+public class PlaylistManagerService(ISettingsService settingsService)
 {
-    private readonly ISettingsService settings;
-
-    public PlaylistManagerService(ISettingsService settingsService)
-    {
-        settings = settingsService;
-    }
-
     public void PopulateDropdown(ComboBox dropdown)
     {
-        var playlists = settings.GetAllPlaylists();
-        var defaultQueue = settings.GetPlaylistById(-1);
+        var playlists = settingsService.GetAllPlaylists();
+        var defaultQueue = settingsService.GetPlaylistById(-1);
         
         dropdown.Items.Clear();
         
         dropdown.Items.Add(new PlaylistDropdownItem
         {
             Id = -1,
-            PlaylistName = defaultQueue?.Name ?? "Default Queue (All Songs)"
+            PlaylistName = defaultQueue?.Name ?? "Default Queue (All Songs)",
         });
         
         foreach (var playlist in playlists)
@@ -31,16 +24,16 @@ public class PlaylistManagerService
             dropdown.Items.Add(new PlaylistDropdownItem
             {
                 Id = playlist.Id,
-                PlaylistName = playlist.Name
+                PlaylistName = playlist.Name,
             });
         }
         
         dropdown.DisplayMemberPath = "PlaylistName";
     }
 
-    public void SetDropdownSelection(ComboBox dropdown, int playlistId)
+    public static void SetDropdownSelection(ComboBox dropdown, int playlistId)
     {
-        for (int i = 0; i < dropdown.Items.Count; i++)
+        for (var i = 0; i < dropdown.Items.Count; i++)
         {
             if (dropdown.Items[i] is PlaylistDropdownItem item && item.Id == playlistId)
             {
@@ -49,22 +42,12 @@ public class PlaylistManagerService
             }
         }
         
-        // If not found, select default queue
         dropdown.SelectedIndex = 0;
     }
-
-    public int? GetSelectedPlaylistId(ComboBox dropdown)
+    
+    public string GetDefaultQueueName()
     {
-        return dropdown.SelectedItem is PlaylistDropdownItem item ? item.Id : null;
-    }
-
-    public (string name, string? genre, string? tags) GetDefaultQueueInfo()
-    {
-        var defaultQueue = settings.GetPlaylistById(-1);
-        return (
-            defaultQueue?.Name ?? "Default Queue",
-            defaultQueue?.Genre,
-            defaultQueue?.Tags
-        );
+        var defaultQueue = settingsService.GetPlaylistById(-1);
+        return defaultQueue?.Name ?? "Default Queue";
     }
 }
