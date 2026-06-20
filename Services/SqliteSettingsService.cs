@@ -42,6 +42,12 @@ public class SqliteSettingsService : ISettingsService
     private readonly HashSet<string> dirtyCumulative = [];
     private readonly HashSet<int> dirtyPlaybackStates = [];
 
+    // Disk I/O runs under saveLock, never under cacheLock. A save snapshots the
+    // dirty cache under cacheLock (microseconds) then writes the snapshot under
+    // saveLock, so UI-thread setters/flushes never block on the actual DB write
+    // (which can take ~1s for the initial duration batch).
+    private readonly object saveLock = new();
+
     private double volumePercent = 3.0; // 0â€“100
     private float band80Hz;
     private float band240Hz;
@@ -339,18 +345,19 @@ public class SqliteSettingsService : ISettingsService
 
     private void AutoSaveCallback(object? state)
     {
-        if (isDirty)
-        {
-            SaveAllSettingsToDatabase();
-        }
+        // Already on a threadpool thread; snapshot + write inline.
+        SaveAllSettingsToDatabase();
     }
 
     public void FlushToDisk()
     {
-        // Persists whatever is dirty. No longer forces a write: callers already
-        // mark their change dirty, so a flush with nothing pending is a no-op
-        // instead of rewriting every table (P2).
-        SaveAllSettingsToDatabase();
+        // Snapshot is cheap and grabs cacheLock only briefly; the disk write is
+        // offloaded so UI-thread callers (volume/autoplay changes) never freeze
+        // on a large pending batch. saveLock serializes with the autosave timer.
+        var pending = SnapshotPendingWrite();
+        if (pending == null) return;
+
+        Task.Run(() => WritePending(pending));
     }
 
     private static int GetIntSetting(SqliteConnection connection, string key, int defaultValue)
@@ -413,136 +420,202 @@ public class SqliteSettingsService : ISettingsService
 
     private void SaveAllSettingsToDatabase()
     {
+        var pending = SnapshotPendingWrite();
+        if (pending == null) return;
+
+        WritePending(pending);
+    }
+
+    // Copies every dirty entry out of the cache and clears the dirty flags, all
+    // under cacheLock. Returns null if nothing is dirty. The returned snapshot is
+    // self-contained, so the disk write can run with no cache access.
+    private PendingWrite? SnapshotPendingWrite()
+    {
         lock (cacheLock)
         {
-            if (!isDirty) return;
+            if (!isDirty) return null;
 
+            var pending = new PendingWrite();
+
+            if (scalarDirty)
+            {
+                pending.Scalars =
+                [
+                    ("FileCount", fileCount.ToString()),
+                    ("LastPlayedIndex", lastPlayedIndex.ToString()),
+                    ("CurrentPlaylistId", currentPlaylistId?.ToString() ?? "-1"),
+                    ("IsQueueShuffled", isQueueShuffled.ToString()),
+                    ("VolumePercent", volumePercent.ToString(CultureInfo.InvariantCulture)),
+                    (SettingsKeys.MusicFolderPath, musicFolderPath),
+                    (SettingsKeys.AutoPlayOnStartup, autoPlayOnStartup.ToString()),
+                    (SettingsKeys.AutoPlayNext, autoPlayNext.ToString()),
+                    (SettingsKeys.DiscordClientId, discordClientId ?? string.Empty),
+                    (SettingsKeys.SongNameFormat, songNameFormat),
+                    ("DefaultQueueName", defaultQueueName),
+                    ("DefaultQueueGenre", defaultQueueGenre ?? string.Empty),
+                    ("DefaultQueueTags", defaultQueueTags ?? string.Empty),
+                ];
+                scalarDirty = false;
+            }
+
+            foreach (var key in dirtyDurations)
+            {
+                if (songDurations.TryGetValue(key, out var value))
+                    pending.Durations.Add((key, value));
+            }
+            dirtyDurations.Clear();
+
+            foreach (var key in dirtyPlayCounts)
+            {
+                if (playCounts.TryGetValue(key, out var value))
+                    pending.PlayCounts.Add((key, value));
+            }
+            dirtyPlayCounts.Clear();
+
+            foreach (var (filePath, pid) in dirtyPlaylistPlayCounts)
+            {
+                if (playlistPlayCounts.TryGetValue(filePath, out var inner) &&
+                    inner.TryGetValue(pid, out var value))
+                    pending.PlaylistPlayCounts.Add((filePath, pid, value));
+            }
+            dirtyPlaylistPlayCounts.Clear();
+
+            foreach (var key in dirtyCumulative)
+            {
+                if (cumulativePlayedTimes.TryGetValue(key, out var value))
+                    pending.Cumulative.Add((key, value));
+            }
+            dirtyCumulative.Clear();
+
+            foreach (var id in dirtyPlaybackStates)
+            {
+                if (playlistCurrentSongs.TryGetValue(id, out var songPath) &&
+                    playlistCurrentPositions.TryGetValue(id, out var position))
+                    pending.PlaybackStates.Add((id, songPath, position));
+                else
+                    pending.PlaybackStateDeletes.Add(id);
+            }
+            dirtyPlaybackStates.Clear();
+
+            if (queueDirty)
+            {
+                pending.Queue = [.. currentQueue];
+                queueDirty = false;
+            }
+
+            if (eqDirty)
+            {
+                pending.Equalizer = (band80Hz, band240Hz, band750Hz, band2200Hz, band6600Hz);
+                eqDirty = false;
+            }
+
+            isDirty = false;
+            return pending;
+        }
+    }
+
+    // Writes a snapshot to disk. Runs under saveLock (serializes the autosave
+    // timer, UI flushes, and Dispose) but never under cacheLock, so the UI thread
+    // is never blocked by the actual I/O.
+    private void WritePending(PendingWrite pending)
+    {
+        lock (saveLock)
+        {
             try
             {
                 using var connection = CreateConnection();
-
                 using var transaction = connection.BeginTransaction();
 
-                if (scalarDirty)
+                if (pending.Scalars != null)
                 {
-                    SetSetting(connection, "FileCount", fileCount.ToString());
-                    SetSetting(connection, "LastPlayedIndex", lastPlayedIndex.ToString());
-                    SetSetting(connection, "CurrentPlaylistId", currentPlaylistId?.ToString() ?? "-1");
-                    SetSetting(connection, "IsQueueShuffled", isQueueShuffled.ToString());
-                    SetSetting(connection, "VolumePercent", volumePercent.ToString(CultureInfo.InvariantCulture));
-
-                    SetSetting(connection, SettingsKeys.MusicFolderPath, musicFolderPath);
-                    SetSetting(connection, SettingsKeys.AutoPlayOnStartup, autoPlayOnStartup.ToString());
-                    SetSetting(connection, SettingsKeys.AutoPlayNext, autoPlayNext.ToString());
-                    SetSetting(connection, SettingsKeys.DiscordClientId, discordClientId ?? string.Empty);
-                    SetSetting(connection, SettingsKeys.SongNameFormat, songNameFormat);
-
-                    SetSetting(connection, "DefaultQueueName", defaultQueueName);
-                    SetSetting(connection, "DefaultQueueGenre", defaultQueueGenre ?? string.Empty);
-                    SetSetting(connection, "DefaultQueueTags", defaultQueueTags ?? string.Empty);
-
-                    scalarDirty = false;
+                    foreach (var (key, value) in pending.Scalars)
+                        SetSetting(connection, key, value);
                 }
 
-                if (dirtyDurations.Count > 0)
+                if (pending.Durations.Count > 0)
                 {
                     using var cmd = connection.CreateCommand();
                     cmd.CommandText = "INSERT OR REPLACE INTO SongDurations (FilePath, Duration) VALUES (@path, @duration)";
                     var path = cmd.Parameters.Add("@path", SqliteType.Text);
                     var duration = cmd.Parameters.Add("@duration", SqliteType.Text);
-                    foreach (var key in dirtyDurations)
+                    foreach (var (key, value) in pending.Durations)
                     {
-                        if (!songDurations.TryGetValue(key, out var value)) continue;
                         path.Value = key;
                         duration.Value = value;
                         cmd.ExecuteNonQuery();
                     }
-                    dirtyDurations.Clear();
                 }
 
-                if (dirtyPlayCounts.Count > 0)
+                if (pending.PlayCounts.Count > 0)
                 {
                     using var cmd = connection.CreateCommand();
                     cmd.CommandText = "INSERT OR REPLACE INTO PlayCounts (FilePath, PlayCount) VALUES (@path, @count)";
                     var path = cmd.Parameters.Add("@path", SqliteType.Text);
                     var count = cmd.Parameters.Add("@count", SqliteType.Integer);
-                    foreach (var key in dirtyPlayCounts)
+                    foreach (var (key, value) in pending.PlayCounts)
                     {
-                        if (!playCounts.TryGetValue(key, out var value)) continue;
                         path.Value = key;
                         count.Value = value;
                         cmd.ExecuteNonQuery();
                     }
-                    dirtyPlayCounts.Clear();
                 }
 
-                if (dirtyPlaylistPlayCounts.Count > 0)
+                if (pending.PlaylistPlayCounts.Count > 0)
                 {
                     using var cmd = connection.CreateCommand();
                     cmd.CommandText = "INSERT OR REPLACE INTO PlaylistPlayCounts (FilePath, PlaylistId, PlayCount) VALUES (@path, @playlistId, @count)";
                     var path = cmd.Parameters.Add("@path", SqliteType.Text);
                     var playlistId = cmd.Parameters.Add("@playlistId", SqliteType.Integer);
                     var count = cmd.Parameters.Add("@count", SqliteType.Integer);
-                    foreach (var (filePath, pid) in dirtyPlaylistPlayCounts)
+                    foreach (var (filePath, pid, value) in pending.PlaylistPlayCounts)
                     {
-                        if (!playlistPlayCounts.TryGetValue(filePath, out var inner) ||
-                            !inner.TryGetValue(pid, out var value)) continue;
                         path.Value = filePath;
                         playlistId.Value = pid;
                         count.Value = value;
                         cmd.ExecuteNonQuery();
                     }
-                    dirtyPlaylistPlayCounts.Clear();
                 }
 
-                if (dirtyCumulative.Count > 0)
+                if (pending.Cumulative.Count > 0)
                 {
                     using var cmd = connection.CreateCommand();
                     cmd.CommandText = "INSERT OR REPLACE INTO CumulativePlayedTimes (FilePath, CumulativeSeconds) VALUES (@path, @cumulative)";
                     var path = cmd.Parameters.Add("@path", SqliteType.Text);
                     var cumulative = cmd.Parameters.Add("@cumulative", SqliteType.Real);
-                    foreach (var key in dirtyCumulative)
+                    foreach (var (key, value) in pending.Cumulative)
                     {
-                        if (!cumulativePlayedTimes.TryGetValue(key, out var value)) continue;
                         path.Value = key;
                         cumulative.Value = value;
                         cmd.ExecuteNonQuery();
                     }
-                    dirtyCumulative.Clear();
                 }
 
-                if (dirtyPlaybackStates.Count > 0)
+                if (pending.PlaybackStates.Count > 0 || pending.PlaybackStateDeletes.Count > 0)
                 {
                     using var upsert = connection.CreateCommand();
                     upsert.CommandText = "INSERT OR REPLACE INTO PlaylistPlaybackState (PlaylistId, CurrentSongPath, CurrentPosition) VALUES (@playlistId, @songPath, @position)";
                     var upId = upsert.Parameters.Add("@playlistId", SqliteType.Integer);
                     var upSong = upsert.Parameters.Add("@songPath", SqliteType.Text);
                     var upPos = upsert.Parameters.Add("@position", SqliteType.Real);
+                    foreach (var (id, songPath, position) in pending.PlaybackStates)
+                    {
+                        upId.Value = id;
+                        upSong.Value = songPath;
+                        upPos.Value = position;
+                        upsert.ExecuteNonQuery();
+                    }
 
                     using var delete = connection.CreateCommand();
                     delete.CommandText = "DELETE FROM PlaylistPlaybackState WHERE PlaylistId = @playlistId";
                     var delId = delete.Parameters.Add("@playlistId", SqliteType.Integer);
-
-                    foreach (var id in dirtyPlaybackStates)
+                    foreach (var id in pending.PlaybackStateDeletes)
                     {
-                        if (playlistCurrentSongs.TryGetValue(id, out var songPath) &&
-                            playlistCurrentPositions.TryGetValue(id, out var position))
-                        {
-                            upId.Value = id;
-                            upSong.Value = songPath;
-                            upPos.Value = position;
-                            upsert.ExecuteNonQuery();
-                        }
-                        else
-                        {
-                            delId.Value = id;
-                            delete.ExecuteNonQuery();
-                        }
+                        delId.Value = id;
+                        delete.ExecuteNonQuery();
                     }
-                    dirtyPlaybackStates.Clear();
                 }
 
-                if (queueDirty)
+                if (pending.Queue != null)
                 {
                     using (var deleteQueueCmd = connection.CreateCommand())
                     {
@@ -555,9 +628,9 @@ public class SqliteSettingsService : ISettingsService
                     var pos = insertQueueCmd.Parameters.Add("@position", SqliteType.Integer);
                     var path = insertQueueCmd.Parameters.Add("@path", SqliteType.Text);
                     var completed = insertQueueCmd.Parameters.Add("@completed", SqliteType.Integer);
-                    for (var i = 0; i < currentQueue.Count; i++)
+                    for (var i = 0; i < pending.Queue.Count; i++)
                     {
-                        var parts = currentQueue[i].Split('|');
+                        var parts = pending.Queue[i].Split('|');
                         var filePath = parts[0];
                         var isCompleted = parts.Length > 1 && bool.Parse(parts[1]);
 
@@ -566,30 +639,43 @@ public class SqliteSettingsService : ISettingsService
                         completed.Value = isCompleted ? 1 : 0;
                         insertQueueCmd.ExecuteNonQuery();
                     }
-                    queueDirty = false;
                 }
 
-                if (eqDirty)
+                if (pending.Equalizer != null)
                 {
+                    var (b80, b240, b750, b2200, b6600) = pending.Equalizer.Value;
                     using var updateEqCmd = connection.CreateCommand();
                     updateEqCmd.CommandText = "UPDATE EqualizerSettings SET Band80Hz = @b80, Band240Hz = @b240, Band750Hz = @b750, Band2200Hz = @b2200, Band6600Hz = @b6600 WHERE Id = 1";
-                    updateEqCmd.Parameters.AddWithValue("@b80", band80Hz);
-                    updateEqCmd.Parameters.AddWithValue("@b240", band240Hz);
-                    updateEqCmd.Parameters.AddWithValue("@b750", band750Hz);
-                    updateEqCmd.Parameters.AddWithValue("@b2200", band2200Hz);
-                    updateEqCmd.Parameters.AddWithValue("@b6600", band6600Hz);
+                    updateEqCmd.Parameters.AddWithValue("@b80", b80);
+                    updateEqCmd.Parameters.AddWithValue("@b240", b240);
+                    updateEqCmd.Parameters.AddWithValue("@b750", b750);
+                    updateEqCmd.Parameters.AddWithValue("@b2200", b2200);
+                    updateEqCmd.Parameters.AddWithValue("@b6600", b6600);
                     updateEqCmd.ExecuteNonQuery();
-                    eqDirty = false;
                 }
 
                 transaction.Commit();
-                isDirty = false;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to save settings to database: {ex.Message}");
             }
         }
+    }
+
+    // Self-contained snapshot of everything dirty at one instant. Built under
+    // cacheLock, consumed by WritePending with no further cache access.
+    private sealed class PendingWrite
+    {
+        public (string Key, string Value)[]? Scalars;
+        public readonly List<(string Path, string Duration)> Durations = [];
+        public readonly List<(string Path, int Count)> PlayCounts = [];
+        public readonly List<(string Path, int PlaylistId, int Count)> PlaylistPlayCounts = [];
+        public readonly List<(string Path, double Seconds)> Cumulative = [];
+        public readonly List<(int Id, string SongPath, double Position)> PlaybackStates = [];
+        public readonly List<int> PlaybackStateDeletes = [];
+        public List<string>? Queue;
+        public (float B80, float B240, float B750, float B2200, float B6600)? Equalizer;
     }
         
     public void Dispose()
@@ -598,7 +684,10 @@ public class SqliteSettingsService : ISettingsService
 
         saveTimer.Change(Timeout.Infinite, Timeout.Infinite);
         saveTimer.Dispose();
-        FlushToDisk();
+
+        // Synchronous on shutdown: snapshot + write inline. WritePending takes
+        // saveLock, so this also waits for any in-flight offloaded flush.
+        SaveAllSettingsToDatabase();
 
         disposed = true;
     }

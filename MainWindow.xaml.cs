@@ -58,22 +58,22 @@ public partial class MainWindow
         };
         
         memoryPositionTimer.Tick += MemoryPositionTimer_Tick;
-        memoryPositionTimer.Start();
-        
+
         savePositionTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromSeconds(3),
         };
         savePositionTimer.Tick += SavePositionTimer_Tick;
-        savePositionTimer.Start();
-        
+
         discordUpdateTimer = new DispatcherTimer
         {
             Interval = TimeSpan.FromSeconds(3),
         };
         discordUpdateTimer.Tick += DiscordUpdateTimer_Tick;
-        discordUpdateTimer.Start();
-        
+
+        // Timers are gated on playback (see PlayerControlsView_PlaybackStateChanged)
+        // so they don't poll while paused/stopped. Idle = zero timer wakeups.
+
         Loaded += MainWindow_Loaded;
         Closing += MainWindow_Closing;
     }
@@ -90,6 +90,7 @@ public partial class MainWindow
         EqualizerView.EqualizerChanged += EqualizerView_EqualizerChanged;
         PlayerControlsView.VolumeChanged += PlayerControlsView_VolumeChanged;
         PlayerControlsView.AutoPlayChanged += PlayerControlsView_AutoPlayChanged;
+        PlayerControlsView.PlaybackStateChanged += PlayerControlsView_PlaybackStateChanged;
         SettingsView.MusicFolderChangeRequested += SettingsView_MusicFolderChangeRequested;
         SettingsView.DatabaseResetRequested += SettingsView_DatabaseResetRequested;
         SettingsView.PlayHistoryClearRequested += SettingsView_PlayHistoryClearRequested;
@@ -124,6 +125,28 @@ public partial class MainWindow
                 ResetPlaylistAndPlayFromStart();
             }
         }
+    }
+
+    private void PlayerControlsView_PlaybackStateChanged(object? sender, bool isPlaying)
+    {
+        if (isPlaying)
+        {
+            memoryPositionTimer?.Start();
+            savePositionTimer?.Start();
+            discordUpdateTimer?.Start();
+            return;
+        }
+
+        memoryPositionTimer?.Stop();
+        savePositionTimer?.Stop();
+        discordUpdateTimer?.Stop();
+
+        // Capture and persist the final position once, so pausing/stopping keeps
+        // the spot the polling timers would otherwise have saved.
+        MemoryPositionTimer_Tick(this, EventArgs.Empty);
+        SaveCurrentPlaybackState();
+        SaveCurrentQueue();
+        UpdateDiscordPresence();
     }
 
     private void MemoryPositionTimer_Tick(object? sender, EventArgs e)

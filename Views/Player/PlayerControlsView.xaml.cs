@@ -49,6 +49,10 @@ public partial class PlayerControlsView : IDisposable
     public event EventHandler? MediaOpenedEvent;
     public event EventHandler<bool>? AutoPlayChanged;
 
+    // Fired whenever playback starts/stops (true = now playing). Lets the host
+    // gate its position/save polling timers so they don't tick while idle.
+    public event EventHandler<bool>? PlaybackStateChanged;
+
     public PlayerControlsView() : this(new AudioService()) { }
 
     private PlayerControlsView(IAudioService audioServiceInstance)
@@ -302,6 +306,7 @@ public partial class PlayerControlsView : IDisposable
     {
         PlayPauseIcon.Data = isCurrentlyPlaying ? PauseIconGeometry : PlayIconGeometry;
         PlayPauseLabel.Text = isCurrentlyPlaying ? "Pause" : "Play";
+        PlaybackStateChanged?.Invoke(this, isCurrentlyPlaying);
     }
 
     private void AudioService_MediaOpened(object? sender, EventArgs e)
