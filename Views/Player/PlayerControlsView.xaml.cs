@@ -1,5 +1,6 @@
 ﻿using System.Windows;
 using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using System.Windows.Threading;
 using MusicPlayer.Interfaces;
 using MusicPlayer.Models;
@@ -292,8 +293,16 @@ public partial class PlayerControlsView : IDisposable
     private static string FormatTime(TimeSpan time) =>
         $"{(int)time.TotalMinutes:00}:{time.Seconds:00}";
 
-    private void UpdatePlayPauseButtonState() =>
-        BtnPlayPause.Content = isCurrentlyPlaying ? "⏸ Pause" : "▶ Play";
+    // Filled play triangle / two pause bars, swapped in place so the button keeps
+    // its layout and the icon stays consistent with the other vector controls.
+    private static readonly Geometry PlayIconGeometry = Geometry.Parse("M7,4 L7,20 L20,12 Z");
+    private static readonly Geometry PauseIconGeometry = Geometry.Parse("M7,5 L7,19 L11,19 L11,5 Z M14,5 L14,19 L18,19 L18,5 Z");
+
+    private void UpdatePlayPauseButtonState()
+    {
+        PlayPauseIcon.Data = isCurrentlyPlaying ? PauseIconGeometry : PlayIconGeometry;
+        PlayPauseLabel.Text = isCurrentlyPlaying ? "Pause" : "Play";
+    }
 
     private void AudioService_MediaOpened(object? sender, EventArgs e)
     {
